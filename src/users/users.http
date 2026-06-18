@@ -1,0 +1,20 @@
+### List users
+GET http://localhost:3000/users
+
+### get users
+GET http://localhost:3000/users/3
+
+### create users
+POST http://localhost:3000/users
+Content-Type: application/json
+
+{
+    "name": "Geovani",
+    "email": "geovani@teste.com"
+}
+
+### update users
+PATCH http://localhost:3000/users
+
+### delete users
+DELETE http://localhost:3000/users/3
