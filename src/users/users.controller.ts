@@ -22,7 +22,7 @@ export class UsersController {
   }
 
   @Get()
-  findAll() {
+  findAll(): string {
     return this.usersService.findAll();
   }
 
