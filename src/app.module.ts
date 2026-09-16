@@ -3,8 +3,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './users/users.module';
 import { CategoriesModule } from './categories/categories.module';
-import { CategoriesModule } from './categories/categories.module';
-import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [

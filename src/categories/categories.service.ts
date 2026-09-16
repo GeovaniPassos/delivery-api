@@ -1,26 +1,47 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Category } from './entities/category.entity';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class CategoriesService {
-  create(createCategoryDto: CreateCategoryDto) {
-    return 'This action adds a new category';
+  constructor(
+    @InjectRepository(Category)
+    private readonly categoriesRepository: Repository<Category>
+  ) {}
+
+  async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
+    const existingCategory = await this.categoriesRepository.findOneBy({
+      name: createCategoryDto.name,
+    });
+
+    if (existingCategory) {
+      throw new ConflictException('A categoria já existe.');
+    }
+
+    const category = this.categoriesRepository.create({
+      name: createCategoryDto.name,
+      active: createCategoryDto.active ?? true,
+    });
+
+    return this.categoriesRepository.save(category);
   }
 
   findAll() {
-    return `This action returns all categories`;
+    return this.categoriesRepository.find();
   }
 
   findOne(id: number) {
-    return `This action returns a #${id} category`;
+    return this.categoriesRepository.findOneBy({ id });
   }
 
   update(id: number, updateCategoryDto: UpdateCategoryDto) {
-    return `This action updates a #${id} category`;
+    return this.categoriesRepository.update(id, updateCategoryDto);
   }
 
   remove(id: number) {
-    return `This action removes a #${id} category`;
+    return this.categoriesRepository.delete(id);
   }
 }
