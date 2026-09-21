@@ -10,6 +10,10 @@ async function bootstrap() {
       whitelist: true,
     }),
   );
+  app.setGlobalPrefix('api');
+  app.enableCors({
+    origin: 'http://localhost:4200',
+  });
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();
