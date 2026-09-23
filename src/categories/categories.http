@@ -22,3 +22,6 @@ Content-Type: application/json
 
 ### delete categories
 DELETE http://localhost:3000/api/categories/4
+
+### alterar status da categoria
+PATCH http://localhost:3000/api/categories/1/toggleStatus

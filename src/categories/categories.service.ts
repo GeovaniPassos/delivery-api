@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -43,5 +43,18 @@ export class CategoriesService {
 
   remove(id: number) {
     return this.categoriesRepository.delete(id);
+  }
+
+  async updateStatus(id: string) {
+    const category = await this.findOne(Number(id));
+
+    if (!category) {
+      throw new NotFoundException('Categoria não encontrada!');
+    }
+
+    category.active = !category.active;
+
+    return this.categoriesRepository.save(category);
+
   }
 }

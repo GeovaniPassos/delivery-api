@@ -9,7 +9,7 @@ export class Category {
     }
  
     @PrimaryGeneratedColumn()
-    id: number;
+    id: number; 
 
     @Column()
     name: string;
