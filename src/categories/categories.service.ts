@@ -13,7 +13,8 @@ export class CategoriesService {
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
-    const existingCategory = await this.categoriesRepository.findOneBy({
+    const existingCategory = 
+      await this.categoriesRepository.findOneBy({
       name: createCategoryDto.name,
     });
 
@@ -23,7 +24,6 @@ export class CategoriesService {
 
     const category = this.categoriesRepository.create({
       name: createCategoryDto.name,
-      active: createCategoryDto.active ?? true,
     });
 
     return this.categoriesRepository.save(category);
