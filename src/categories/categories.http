@@ -13,11 +13,11 @@ Content-Type: application/json
 }
 
 ### update categories
-PATCH http://localhost:3000/api/categories/1
+PATCH http://localhost:3000/api/categories/4
 Content-Type: application/json
 
 {
-    "name": "Lanches"
+    "name": "Lanches 2"
 }
 
 ### delete categories

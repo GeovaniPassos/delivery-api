@@ -29,16 +29,27 @@ export class CategoriesService {
     return this.categoriesRepository.save(category);
   }
 
+  async update(id: number, updateCategoryDto: UpdateCategoryDto): Promise<Category> {
+
+    const category = await this.categoriesRepository.preload({
+      id,
+      ...updateCategoryDto
+    });
+
+    if (!category) {
+      throw new NotFoundException(`Usuário com id ${id} não encontrado`);
+    }
+
+    return this.categoriesRepository.save(category);
+      
+  }
+
   findAll() {
     return this.categoriesRepository.find();
   }
 
   findOne(id: number) {
     return this.categoriesRepository.findOneBy({ id });
-  }
-
-  update(id: number, updateCategoryDto: UpdateCategoryDto) {
-    return this.categoriesRepository.update(id, updateCategoryDto);
   }
 
   remove(id: number) {
