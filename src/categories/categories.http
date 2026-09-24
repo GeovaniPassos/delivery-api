@@ -9,7 +9,7 @@ POST http://localhost:3000/api/categories
 Content-Type: application/json
 
 {
-    "name": "Sucos"
+    "name": "Pizza"
 }
 
 ### update categories
@@ -17,7 +17,8 @@ PATCH http://localhost:3000/api/categories/4
 Content-Type: application/json
 
 {
-    "name": "Lanches 2"
+    "name": "Lanches 2",
+    "active": true
 }
 
 ### delete categories
