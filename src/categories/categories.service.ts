@@ -1,20 +1,23 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from './entities/category.entity';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 
 @Injectable()
 export class CategoriesService {
   constructor(
     @InjectRepository(Category)
-    private readonly categoriesRepository: Repository<Category>
+    private readonly categoriesRepository: Repository<Category>,
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
-    const existingCategory = 
-      await this.categoriesRepository.findOneBy({
+    const existingCategory = await this.categoriesRepository.findOneBy({
       name: createCategoryDto.name,
     });
 
@@ -29,13 +32,13 @@ export class CategoriesService {
     return this.categoriesRepository.save(category);
   }
 
-  async update(id: number, updateCategoryDto: UpdateCategoryDto): Promise<Category> {
-
-    
-    
+  async update(
+    id: number,
+    updateCategoryDto: UpdateCategoryDto,
+  ): Promise<Category> {
     const category = await this.categoriesRepository.preload({
       id,
-      ...updateCategoryDto
+      ...updateCategoryDto,
     });
 
     if (!category) {
@@ -43,7 +46,6 @@ export class CategoriesService {
     }
 
     return this.categoriesRepository.save(category);
-      
   }
 
   findAll() {
@@ -54,8 +56,20 @@ export class CategoriesService {
     return this.categoriesRepository.findOneBy({ id });
   }
 
-  remove(id: number) {
-    return this.categoriesRepository.delete(id);
+  async remove(id: number) {
+    try {
+      return await this.categoriesRepository.delete(id);
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string }).code === '23503'
+      ) {
+        throw new ConflictException(
+          'Não é possível excluir uma categoria com produtos vinculados.',
+        );
+      }
+      throw error;
+    }
   }
 
   async updateStatus(id: string) {
@@ -68,6 +82,5 @@ export class CategoriesService {
     category.active = !category.active;
 
     return this.categoriesRepository.save(category);
-
   }
 }
