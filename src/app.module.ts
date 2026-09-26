@@ -1,3 +1,4 @@
+import { PizzasModule } from './pizzas/pizzas.module';
 import { ProductsModule } from './products/products.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -28,6 +29,7 @@ import { CategoriesModule } from './categories/categories.module';
     UsersModule,
     CategoriesModule,
     ProductsModule,
+    PizzasModule,
   ],
 })
 export class AppModule {}

@@ -37,6 +37,10 @@ export class ProductsService {
       id: product.categoryId,
     });
     if (!category) throw new BadRequestException('Categoria não encontrada.');
+    if (category.isPizza)
+      throw new BadRequestException(
+        'Cadastre os sabores desta categoria na aba Pizzas.',
+      );
     if (
       product.promotionalPrice != null &&
       product.promotionalPrice >= product.price
