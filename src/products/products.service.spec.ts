@@ -27,6 +27,24 @@ describe('ProductsService', () => {
       categories as unknown as Repository<Category>,
     );
   });
+  it('defaults to all weekdays and preserves them on unrelated updates', async () => {
+    expect(
+      await service.create({ name: 'Hambúrguer', price: 20, categoryId: 1 }),
+    ).toMatchObject({ availableDays: [0, 1, 2, 3, 4, 5, 6] });
+    products.findOne.mockResolvedValue({
+      id: 1,
+      name: 'Hambúrguer',
+      price: 20,
+      categoryId: 1,
+      availableDays: [2, 5],
+    });
+    expect(await service.update(1, { name: 'Novo nome' })).toMatchObject({
+      availableDays: [2, 5],
+    });
+    expect(await service.update(1, { availableDays: [0, 6] })).toMatchObject({
+      availableDays: [0, 6],
+    });
+  });
   it('creates with category, monetary fields and unavailable status', async () => {
     const saved = await service.create({
       name: 'Hambúrguer',
@@ -94,5 +112,27 @@ describe('ProductsService', () => {
     expect(products.remove).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1 }),
     );
+  });
+  it('defaults to an empty list and preserves ordered ingredients across updates', async () => {
+    expect(
+      await service.create({ name: 'Suco', price: 10, categoryId: 1 }),
+    ).toMatchObject({ ingredients: [] });
+    const ingredients = ['Pão', 'Hambúrguer', 'Queijo', 'Tomate'];
+    products.findOne.mockResolvedValue({
+      id: 1,
+      name: 'Lanche',
+      price: 20,
+      categoryId: 1,
+      ingredients,
+    });
+    expect(
+      await service.update(1, { description: 'Feito na chapa' }),
+    ).toMatchObject({ ingredients });
+    expect(
+      await service.update(1, { ingredients: ['Pão', 'Queijo'] }),
+    ).toMatchObject({ ingredients: ['Pão', 'Queijo'] });
+    expect(await service.update(1, { ingredients: [] })).toMatchObject({
+      ingredients: [],
+    });
   });
 });

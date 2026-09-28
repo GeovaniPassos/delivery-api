@@ -17,6 +17,8 @@ export class Product {
   @PrimaryGeneratedColumn() id!: number;
   @Column({ length: 120 }) name!: string;
   @Column({ type: 'text', default: '' }) description!: string;
+  @Column({ type: 'text', array: true, default: () => "'{}'::text[]" })
+  ingredients!: string[];
   @Column({ type: 'text', nullable: true }) photo!: string | null;
   @Column({ type: 'decimal', precision: 10, scale: 2, transformer: money })
   price!: number;
@@ -32,5 +34,7 @@ export class Product {
   @ManyToOne(() => Category, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'categoryId' })
   category!: Category;
+  @Column({ type: 'int', array: true, default: () => 'ARRAY[0,1,2,3,4,5,6]' })
+  availableDays!: number[];
   @Column({ default: true }) available!: boolean;
 }

@@ -39,6 +39,20 @@ export class CreatePizzaDto {
   @IsString()
   @MaxLength(5000)
   description?: string;
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value.map((item) => (typeof item === 'string' ? item.trim() : item))
+      : value,
+  )
+  @ValidateIf((_, value) => value !== undefined)
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ArrayUnique((item: unknown) =>
+    typeof item === 'string' ? item.toLocaleLowerCase('pt-BR') : item,
+  )
+  @IsString({ each: true })
+  @Length(1, 120, { each: true })
+  ingredients?: string[];
   @IsOptional()
   @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
   @MaxLength(2048)

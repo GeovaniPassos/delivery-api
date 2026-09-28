@@ -1,3 +1,4 @@
+import { OptionalsModule } from './optionals/optionals.module';
 import { PizzasModule } from './pizzas/pizzas.module';
 import { ProductsModule } from './products/products.module';
 import { Module } from '@nestjs/common';
@@ -30,6 +31,7 @@ import { CategoriesModule } from './categories/categories.module';
     CategoriesModule,
     ProductsModule,
     PizzasModule,
+    OptionalsModule,
   ],
 })
 export class AppModule {}

@@ -40,6 +40,7 @@ export class PizzasService {
         throw new NotFoundException('Sabor de pizza não encontrado.');
       const pizza = repo.create({
         description: '',
+        ingredients: [],
         photo: null,
         available: true,
         ...previous,
@@ -49,12 +50,10 @@ export class PizzasService {
           promotionalPrice: price.promotionalPrice ?? null,
         })),
       });
-      const category = await manager
-        .getRepository(Category)
-        .findOne({
-          where: { id: pizza.categoryId },
-          lock: { mode: 'pessimistic_write' },
-        });
+      const category = await manager.getRepository(Category).findOne({
+        where: { id: pizza.categoryId },
+        lock: { mode: 'pessimistic_write' },
+      });
       validatePizza(pizza, category);
       return repo.save(pizza);
     });

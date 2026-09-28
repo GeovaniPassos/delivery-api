@@ -1,3 +1,4 @@
+import { OptionalGroup } from '../optionals/entities/optional-group.entity';
 import {
   ConflictException,
   Injectable,
@@ -24,7 +25,7 @@ export class CategoriesService {
         throw new ConflictException('Já existe uma categoria com esse nome.');
       if (code === '23503')
         throw new ConflictException(
-          'Não é possível excluir uma categoria com produtos ou pizzas vinculados.',
+          'Não é possível excluir uma categoria com produtos, pizzas ou opcionais vinculados.',
         );
     }
     throw error;
@@ -79,6 +80,13 @@ export class CategoriesService {
           throw new ConflictException(
             'Esta categoria possui pizzas. Mova ou exclua os sabores antes de alterar o tipo.',
           );
+        const groups = await manager
+          .getRepository(OptionalGroup)
+          .findBy({ categoryId: id });
+        if (groups.length && category.isPizza !== previous.isPizza)
+          throw new ConflictException(
+            'Remova os vínculos dos opcionais antes de alterar o tipo da categoria.',
+          );
         const validIds = new Set(category.pizzaSizes.map((size) => size.id));
         if (
           pizzas.some((pizza) =>
@@ -87,6 +95,16 @@ export class CategoriesService {
         )
           throw new ConflictException(
             'Não é possível remover um tamanho com preços cadastrados. Você pode renomeá-lo.',
+          );
+        if (
+          groups.some((group) =>
+            group.items.some((item) =>
+              item.sizePrices.some((price) => !validIds.has(price.sizeId)),
+            ),
+          )
+        )
+          throw new ConflictException(
+            'Não é possível remover um tamanho com bordas cadastradas. Edite os opcionais primeiro.',
           );
         return repo.save(category);
       });

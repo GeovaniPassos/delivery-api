@@ -1,10 +1,12 @@
+import { ALL_DAYS } from '../categories/model/pizza-settings';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, QueryFailedError } from 'typeorm';
 import { Category } from '../categories/entities/category.entity';
 import { Product } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -54,9 +56,11 @@ export class ProductsService {
   async create(dto: CreateProductDto) {
     const product = this.products.create({
       description: '',
+      ingredients: [],
       photo: null,
       promotionalPrice: null,
       available: true,
+      availableDays: [...ALL_DAYS],
       ...dto,
     });
     await this.validate(product);
@@ -68,7 +72,18 @@ export class ProductsService {
     return this.products.save(product);
   }
   async remove(id: number) {
-    await this.products.remove(await this.findOne(id));
+    try {
+      await this.products.remove(await this.findOne(id));
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string }).code === '23503'
+      )
+        throw new ConflictException(
+          'Remova o produto dos grupos de opcionais antes de excluí-lo.',
+        );
+      throw error;
+    }
   }
   async updateStatus(id: number) {
     const product = await this.findOne(id);

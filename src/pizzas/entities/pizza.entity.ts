@@ -16,6 +16,7 @@ export class Pizza {
   @PrimaryGeneratedColumn() id!: number;
   @Column({ length: 120 }) name!: string;
   @Column({ type: 'text', default: '' }) description!: string;
+  @Column({ type: 'text', array: true, default: '{}' }) ingredients!: string[];
   @Column({ type: 'text', nullable: true }) photo!: string | null;
   @Column() categoryId!: number;
   @ManyToOne(() => Category, { nullable: false, onDelete: 'RESTRICT' })

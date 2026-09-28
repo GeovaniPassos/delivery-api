@@ -81,3 +81,31 @@ describe('Pizza request validation', () => {
     ).toBeGreaterThan(0);
   });
 });
+
+describe('Pizza ingredients', () => {
+  it('trims items and preserves their order', async () => {
+    const dto = plainToInstance(UpdatePizzaDto, {
+      ingredients: [' Molho ', 'Queijo', 'Tomate'],
+    });
+    expect(await validate(dto)).toHaveLength(0);
+    expect(dto.ingredients).toEqual(['Molho', 'Queijo', 'Tomate']);
+  });
+  it('rejects invalid items and allows clearing the list', async () => {
+    for (const ingredients of [
+      null,
+      [' '],
+      ['Queijo', ' queijo '],
+      [12],
+      ['a'.repeat(121)],
+      Array.from({ length: 51 }, (_, i) => String(i)),
+    ]) {
+      expect(
+        (await validate(plainToInstance(UpdatePizzaDto, { ingredients })))
+          .length,
+      ).toBeGreaterThan(0);
+    }
+    expect(
+      await validate(plainToInstance(UpdatePizzaDto, { ingredients: [] })),
+    ).toHaveLength(0);
+  });
+});

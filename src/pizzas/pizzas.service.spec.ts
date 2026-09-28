@@ -37,6 +37,23 @@ describe('PizzasService', () => {
       transaction: (fn: any) => fn(manager),
     } as unknown as DataSource);
   });
+  it('defaults, preserves, replaces and clears ordered ingredients', async () => {
+    expect(await service.create(dto)).toMatchObject({ ingredients: [] });
+    const ingredients = ['Molho', 'Queijo', 'Tomate'];
+    expect(await service.create({ ...dto, ingredients })).toMatchObject({
+      ingredients,
+    });
+    repo.findOne.mockResolvedValue({ id: 1, ...dto, ingredients });
+    expect(await service.update(1, { name: 'Nova pizza' })).toMatchObject({
+      ingredients,
+    });
+    expect(
+      await service.update(1, { ingredients: ['Molho', 'Tomate'] }),
+    ).toMatchObject({ ingredients: ['Molho', 'Tomate'] });
+    expect(await service.update(1, { ingredients: [] })).toMatchObject({
+      ingredients: [],
+    });
+  });
   it('saves every field in a separate pizza entity', async () => {
     expect(
       await service.create({

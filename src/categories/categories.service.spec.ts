@@ -1,3 +1,4 @@
+import { OptionalGroup } from '../optionals/entities/optional-group.entity';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CategoriesService } from './categories.service';
@@ -10,6 +11,7 @@ describe('CategoriesService', () => {
   let categories: any;
   let products: any;
   let pizzas: any;
+  let optionals: any;
   beforeEach(() => {
     categories = {
       create: jest.fn((v) => ({ ...v })),
@@ -27,9 +29,16 @@ describe('CategoriesService', () => {
     };
     products = { countBy: jest.fn(async () => 0) };
     pizzas = { findBy: jest.fn(async () => []) };
+    optionals = { findBy: jest.fn(async () => []) };
     const manager = {
       getRepository: (type: any) =>
-        type === Category ? categories : type === Product ? products : pizzas,
+        type === Category
+          ? categories
+          : type === Product
+            ? products
+            : type === OptionalGroup
+              ? optionals
+              : pizzas,
     };
     service = new CategoriesService({
       getRepository: manager.getRepository,
@@ -80,6 +89,20 @@ describe('CategoriesService', () => {
         pricingRule: PizzaPricingRule.HIGHEST,
       }),
     ).rejects.toThrow(ConflictException);
+  });
+  it('protects sizes and category types used by optional groups', async () => {
+    optionals.findBy.mockResolvedValue([
+      { items: [{ sizePrices: [{ sizeId: size.id, price: 5 }] }] },
+    ]);
+    await expect(
+      service.update(1, { pizzaSizes: [{ name: 'Nova' }] }),
+    ).rejects.toThrow(ConflictException);
+    await expect(service.update(1, { isPizza: false })).rejects.toThrow(
+      ConflictException,
+    );
+    expect(
+      await service.update(1, { pizzaSizes: [{ ...size, name: 'Renomeado' }] }),
+    ).toMatchObject({ pizzaSizes: [{ ...size, name: 'Renomeado' }] });
   });
   it('reports absent categories', async () => {
     categories.findOne.mockResolvedValue(null);
