@@ -6,6 +6,7 @@ import { OptionalGroup } from '../optionals/entities/optional-group.entity';
 import { Neighborhood } from '../neighborhoods/entities/neighborhood.entity';
 import { QuoteOrderDto } from './dto/create-order.dto';
 import { OrderQuote } from './model/order.model';
+import { normalizedSizeName } from '../categories/pizza-combinations';
 export interface OrderCatalog {
   products: Product[];
   pizzas: Pizza[];
@@ -85,10 +86,25 @@ export function calculateOrder(
       name = 'Pizza ' + size!.name;
       const prices = line.flavors!.map((flavor) => {
         const pizza = catalog.pizzas.find((p) => p.id === flavor.pizzaId);
-        if (!pizza || pizza.categoryId !== categoryId)
-          fail('Sabor de pizza inválido para esta categoria.');
+        const compatible =
+          pizza &&
+          (pizza.categoryId === categoryId ||
+            (line.flavors!.length > 1 &&
+              category!.compatibleCategoryIds?.includes(pizza.categoryId) &&
+              pizza.category.isPizza &&
+              (pizza.category.maxFlavors ?? 1) > 1));
+        if (!compatible) fail('Sabor de pizza inválido para esta categoria.');
         available(pizza!);
-        const price = pizza!.prices.find((p) => p.sizeId === line.sizeId);
+        const flavorSize =
+          pizza!.categoryId === categoryId
+            ? size
+            : pizza!.category.pizzaSizes.find(
+                (s) =>
+                  normalizedSizeName(s.name) === normalizedSizeName(size!.name),
+              );
+        if (!flavorSize)
+          fail('Um sabor não possui tamanho equivalente ao selecionado.');
+        const price = pizza!.prices.find((p) => p.sizeId === flavorSize!.id);
         if (!price) fail('Um sabor não tem preço para este tamanho.');
         details.push(
           pizza!.name,
@@ -106,7 +122,22 @@ export function calculateOrder(
     let extras = 0;
     let crustCount = 0;
     const totals = new Map<number, number>();
-    for (const selected of line.optionals) {
+    const itemTotals = new Map<string, number>();
+    const choices = [
+      ...line.optionals.map((selected) => ({
+        selected,
+        pizza: undefined as Pizza | undefined,
+      })),
+      ...(line.type === 'pizza'
+        ? line.flavors!.flatMap((flavor) =>
+            (flavor.optionals ?? []).map((selected) => ({
+              selected,
+              pizza: catalog.pizzas.find((p) => p.id === flavor.pizzaId),
+            })),
+          )
+        : []),
+    ];
+    for (const { selected, pizza: flavorPizza } of choices) {
       const group = catalog.groups.find((g) => g.id === selected.groupId);
       if (!group)
         fail('Um grupo de opcionais foi removido. Revise o carrinho.');
@@ -116,15 +147,25 @@ export function calculateOrder(
             (group!.scope === 'category'
               ? group!.categoryId === categoryId
               : group!.products.some((p) => p.id === line.productId))
-          : group!.kind !== 'general' &&
-            group!.scope === 'category' &&
-            group!.categoryId === categoryId;
+          : flavorPizza
+            ? group!.kind === 'pizza-extra' &&
+              group!.scope === 'category' &&
+              group!.categoryId === flavorPizza.categoryId
+            : group!.kind !== 'general' &&
+              group!.scope === 'category' &&
+              group!.categoryId === categoryId;
       if (!applicable) fail('Opcional não permitido para este produto.');
       const item = group!.items.find((i) => i.id === selected.itemId);
       if (!item) fail('Um opcional não existe mais.');
       const limit = group!.quantitative ? group!.maxPerOption : 1;
-      if (limit !== 0 && selected.quantity > limit)
+      const itemKey = group!.id + ':' + selected.itemId;
+      const itemTotal = (itemTotals.get(itemKey) ?? 0) + selected.quantity;
+      if (
+        !Number.isSafeInteger(itemTotal) ||
+        (limit !== 0 && itemTotal > limit)
+      )
         fail('Limite por opção excedido em ' + group!.name + '.');
+      itemTotals.set(itemKey, itemTotal);
       const total = (totals.get(group!.id) ?? 0) + selected.quantity;
       if (
         !Number.isSafeInteger(total) ||
@@ -147,11 +188,14 @@ export function calculateOrder(
           item!.name +
           ' (' +
           group!.name +
-          ')',
+          ')' +
+          (flavorPizza ? ' — ' + flavorPizza.name : ''),
       );
     }
     const unitPrice = cents((base + extras) / 100) / 100;
     const total = cents(unitPrice * line.quantity) / 100;
+    if (line.observation?.trim())
+      details.push('Observação: ' + line.observation.trim());
     return { name, quantity: line.quantity, unitPrice, total, details };
   });
   const neighborhood =

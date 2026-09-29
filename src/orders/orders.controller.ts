@@ -26,6 +26,11 @@ export class OrdersController {
   ) {
     return this.service.list(dto);
   }
+  @Get('admin/notifications')
+  @Header('Cache-Control', 'no-store')
+  notifications() {
+    return this.service.notifications();
+  }
   @Get('admin/:id') @Header('Cache-Control', 'no-store') detail(
     @Param('id', ParseIntPipe) id: number,
   ) {

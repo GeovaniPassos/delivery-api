@@ -25,6 +25,13 @@ export class OrderOptionalDto {
   @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) quantity!: number;
 }
 export class OrderFlavorDto {
+  @ValidateIf((_, v) => v !== undefined)
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ArrayUnique((o: OrderOptionalDto) => o.groupId + ':' + o.itemId)
+  @ValidateNested({ each: true })
+  @Type(() => OrderOptionalDto)
+  optionals?: OrderOptionalDto[];
   @IsInt() @Min(1) pizzaId!: number;
   @IsArray()
   @ArrayMaxSize(50)
@@ -34,6 +41,11 @@ export class OrderFlavorDto {
   removedIngredients: string[] = [];
 }
 export class OrderItemDto {
+  @ValidateIf((_, v) => v !== undefined)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(500)
+  observation?: string;
   @IsIn(['product', 'pizza']) type!: 'product' | 'pizza';
   @IsInt() @Min(1) @Max(99) quantity!: number;
   @ValidateIf((o) => o.type === 'product') @IsInt() @Min(1) productId?: number;

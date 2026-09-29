@@ -1,6 +1,7 @@
 import { NeighborhoodsModule } from './neighborhoods/neighborhoods.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { OrdersModule } from './orders/orders.module';
+import { StoreSettingsModule } from './store-settings/store-settings.module';
 import { OptionalsModule } from './optionals/optionals.module';
 import { PizzasModule } from './pizzas/pizzas.module';
 import { ProductsModule } from './products/products.module';
@@ -38,6 +39,7 @@ import { CategoriesModule } from './categories/categories.module';
     NeighborhoodsModule,
     PaymentMethodsModule,
     OrdersModule,
+    StoreSettingsModule,
   ],
 })
 export class AppModule {}

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { DataSource, EntityManager, In, QueryFailedError } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
@@ -18,6 +19,9 @@ import { Order } from './entities/order.entity';
 import { CreateOrderDto, QuoteOrderDto } from './dto/create-order.dto';
 import { calculateOrder, cents } from './order-pricing';
 import type { OrderPayment } from './model/order.model';
+import { StoreSettings } from '../store-settings/entities/store-settings.entity';
+import { PizzaCategoryCombination } from '../categories/entities/pizza-category-combination.entity';
+import { combinationIds } from '../categories/pizza-combinations';
 @Injectable()
 export class OrdersService {
   constructor(private readonly dataSource: DataSource) {}
@@ -32,7 +36,12 @@ export class OrdersService {
       .filter((i) => i.type === 'pizza')
       .map((i) => i.categoryId!);
     const groupIds = dto.items.flatMap((i) =>
-      i.optionals.map((o) => o.groupId),
+      [
+        ...i.optionals,
+        ...(i.type === 'pizza'
+          ? (i.flavors?.flatMap((f) => f.optionals ?? []) ?? [])
+          : []),
+      ].map((o) => o.groupId),
     );
     const products = productIds.length
       ? await manager.getRepository(Product).find({
@@ -48,6 +57,20 @@ export class OrdersService {
     const categories = categoryIds.length
       ? await manager.getRepository(Category).findBy({ id: In(categoryIds) })
       : [];
+    if (categoryIds.length) {
+      const links = await manager
+        .getRepository(PizzaCategoryCombination)
+        .find({
+          where: [
+            { categoryId: In(categoryIds) },
+            { compatibleCategoryId: In(categoryIds) },
+          ],
+        });
+      categories.forEach(
+        (category) =>
+          (category.compatibleCategoryIds = combinationIds(category.id, links)),
+      );
+    }
     const groups = groupIds.length
       ? await manager
           .getRepository(OptionalGroup)
@@ -95,11 +118,26 @@ export class OrdersService {
     const hash = createHash('sha256').update(JSON.stringify(dto)).digest('hex');
     try {
       return await this.dataSource.transaction(
-        'REPEATABLE READ',
+        'READ COMMITTED',
         async (manager) => {
           const repo = manager.getRepository(Order);
           const existing = await repo.findOneBy({ requestId: dto.requestId });
           if (existing) return this.repeat(existing, hash);
+          // A closing update waits for orders already being confirmed, and new
+          // confirmations observe the closed state after that update commits.
+          const settings = await manager
+            .getRepository(StoreSettings)
+            .findOne({ where: { id: 1 }, lock: { mode: 'pessimistic_read' } });
+          if (!settings)
+            throw new ServiceUnavailableException(
+              'Não foi possível verificar o funcionamento da loja.',
+            );
+          if (!settings.isOpen)
+            throw new ConflictException({
+              code: 'STORE_CLOSED',
+              message:
+                'A loja está fechada. Você pode manter os itens no carrinho e finalizar quando ela reabrir.',
+            });
           const quote = await this.quoteWith(manager, dto);
           if (cents(dto.expectedTotal) !== cents(quote.total))
             throw new ConflictException(
@@ -162,6 +200,10 @@ export class OrdersService {
             deliveryFee: quote.deliveryFee,
             total: quote.total,
             status: 'received',
+            estimatedMinutes:
+              dto.fulfillment === 'delivery'
+                ? settings.deliveryMinutes
+                : settings.pickupMinutes,
           });
           const saved = await repo.save(order);
           return {
@@ -197,6 +239,7 @@ export class OrdersService {
       fulfillment: order.fulfillment,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
+      estimatedMinutes: order.estimatedMinutes,
       items: order.items,
       subtotal: order.subtotal,
       deliveryFee: order.deliveryFee,
@@ -240,6 +283,13 @@ export class OrdersService {
       page: dto.page,
       pageSize: 30,
       counts,
+    };
+  }
+  async notifications() {
+    return {
+      newOrders: await this.dataSource
+        .getRepository(Order)
+        .countBy({ status: 'received' }),
     };
   }
   async findOne(id: number) {

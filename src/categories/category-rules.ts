@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Category } from './entities/category.entity';
 import { PizzaPricingRule } from './model/pizza-settings';
 import { PizzaSizeDto } from './dto/create-category.dto';
+import { normalizedSizeName } from './pizza-combinations';
 export function configurePizzaCategory(
   category: Category,
   sizes: PizzaSizeDto[],
@@ -28,7 +29,7 @@ export function configurePizzaCategory(
     throw new BadRequestException(
       'Escolha a cobrança pelo maior valor ou pela média.',
     );
-  const names = sizes.map((s) => s.name.trim().toLocaleLowerCase('pt-BR'));
+  const names = sizes.map((s) => normalizedSizeName(s.name));
   if (new Set(names).size !== names.length)
     throw new BadRequestException('Os tamanhos devem ter nomes diferentes.');
   const ids = sizes.filter((s) => s.id).map((s) => s.id);

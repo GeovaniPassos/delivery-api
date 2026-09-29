@@ -105,3 +105,36 @@ describe('Checkout validation', () => {
     ).not.toEqual([]);
   });
 });
+
+it('validates flavor extras and trims pizza observations with a 500 character limit', async () => {
+  const extra = {
+    groupId: 1,
+    itemId: 'a06db357-6e58-4d3c-8445-a59ac5be5c39',
+    quantity: 2,
+  };
+  const pizza = {
+    type: 'pizza',
+    categoryId: 1,
+    sizeId: extra.itemId,
+    quantity: 1,
+    observation: '  Bem assada  ',
+    flavors: [{ pizzaId: 1, optionals: [extra] }],
+  };
+  const dto = plainToInstance(CreateOrderDto, { ...base, items: [pizza] });
+  expect(await validate(dto)).toEqual([]);
+  expect(dto.items[0].observation).toBe('Bem assada');
+  for (const invalid of [
+    { ...pizza, observation: 'x'.repeat(501) },
+    {
+      ...pizza,
+      flavors: [{ pizzaId: 1, optionals: [{ ...extra, quantity: -1 }] }],
+    },
+    { ...pizza, flavors: [{ pizzaId: 1, optionals: [extra, extra] }] },
+    { ...pizza, flavors: [{ pizzaId: 1, optionals: null }] },
+  ])
+    expect(
+      await validate(
+        plainToInstance(CreateOrderDto, { ...base, items: [invalid] }),
+      ),
+    ).not.toEqual([]);
+});

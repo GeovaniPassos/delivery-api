@@ -15,6 +15,7 @@ describe('Order progression and tracking', () => {
     update: jest.Mock;
     findAndCount: jest.Mock;
     createQueryBuilder: jest.Mock;
+    countBy: jest.Mock;
   };
   beforeEach(() => {
     order = {
@@ -34,6 +35,7 @@ describe('Order progression and tracking', () => {
       deliveryFee: 0,
     } as Order;
     repo = {
+      countBy: jest.fn().mockResolvedValue(3),
       findOneBy: jest.fn((query) =>
         Promise.resolve(
           query.trackingToken && query.trackingToken !== token ? null : order,
@@ -62,6 +64,10 @@ describe('Order progression and tracking', () => {
     service = new OrdersService({
       getRepository: () => repo,
     } as unknown as DataSource);
+  });
+  it('counts only received orders as new notifications', async () => {
+    expect(await service.notifications()).toEqual({ newOrders: 3 });
+    expect(repo.countBy).toHaveBeenCalledWith({ status: 'received' });
   });
   it.each(['pickup', 'delivery'] as const)(
     'moves %s orders through every stage without skipping',

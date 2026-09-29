@@ -47,6 +47,7 @@ export class Order {
   })
   total!: number;
   @Column({ default: 'received' }) status!: string;
+  @Column({ type: 'int', nullable: true }) estimatedMinutes!: number | null;
   @CreateDateColumn() createdAt!: Date;
   @UpdateDateColumn() updatedAt!: Date;
 }
