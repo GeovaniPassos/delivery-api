@@ -1,3 +1,6 @@
+import { NeighborhoodsModule } from './neighborhoods/neighborhoods.module';
+import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
+import { OrdersModule } from './orders/orders.module';
 import { OptionalsModule } from './optionals/optionals.module';
 import { PizzasModule } from './pizzas/pizzas.module';
 import { ProductsModule } from './products/products.module';
@@ -32,6 +35,9 @@ import { CategoriesModule } from './categories/categories.module';
     ProductsModule,
     PizzasModule,
     OptionalsModule,
+    NeighborhoodsModule,
+    PaymentMethodsModule,
+    OrdersModule,
   ],
 })
 export class AppModule {}
