@@ -144,13 +144,19 @@ export function calculateOrder(
       const root = catalog.categories.find((c) => c.id === categoryId);
       const crustCategory =
         group!.category ??
-        catalog.categories.find((c) => c.id === group!.categoryId);
+        catalog.categories.find((c) => c.id === group!.categoryId) ??
+        catalog.pizzas.find((p) => p.categoryId === group!.categoryId)
+          ?.category;
+      const selectedCategoryIds = new Set(
+        (line.flavors ?? []).map(
+          (f) => catalog.pizzas.find((p) => p.id === f.pizzaId)?.categoryId,
+        ),
+      );
       const sharedCrust =
         group!.kind === 'pizza-crust' &&
-        (group!.categoryId === categoryId ||
-          group!.categoryIds?.includes(categoryId) ||
-          (group!.categoryId != null &&
-            root?.compatibleCategoryIds?.includes(group!.categoryId)));
+        ((group!.categoryId !== null &&
+          selectedCategoryIds.has(group!.categoryId)) ||
+          group!.categoryIds?.some((id) => selectedCategoryIds.has(id)));
       const applicable =
         line.type === 'product'
           ? group!.kind === 'general' &&
@@ -163,7 +169,9 @@ export function calculateOrder(
               group!.categoryId === flavorPizza.categoryId
             : group!.kind !== 'general' &&
               group!.scope === 'category' &&
-              (group!.categoryId === categoryId || sharedCrust);
+              (group!.kind === 'pizza-crust'
+                ? sharedCrust
+                : group!.categoryId === categoryId);
       if (!applicable) fail('Opcional não permitido para este produto.');
       const item = group!.items.find((i) => i.id === selected.itemId);
       if (!item) fail('Um opcional não existe mais.');

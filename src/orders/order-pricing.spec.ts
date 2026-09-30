@@ -298,3 +298,57 @@ describe('Mixed pizza configuration', () => {
     );
   });
 });
+
+describe('Borders of selected flavor categories', () => {
+  function setup() {
+    const { c, req } = mixedPizza();
+    req.items[0].quantity = 1;
+    req.items[0].flavors!.forEach((f) => (f.optionals = []));
+    const borders = c.pizzas.map(
+      (p, i) =>
+        ({
+          ...group,
+          id: 10 + i,
+          kind: 'pizza-crust',
+          categoryId: p.categoryId,
+          category: p.category,
+          quantitative: false,
+          maxTotal: 1,
+          maxPerOption: 1,
+          items: [
+            {
+              id: 'border',
+              name: 'Borda ' + p.name,
+              price: null,
+              sizePrices: [
+                { sizeId: p.category.pizzaSizes[0].id, price: i ? 12 : 8 },
+              ],
+            },
+          ],
+        }) as OptionalGroup,
+    );
+    c.groups = borders;
+    return { c, req };
+  }
+  it('charges either selected category border by its own matching size and rejects two borders', () => {
+    const { c, req } = setup();
+    req.items[0].optionals = [{ groupId: 10, itemId: 'border', quantity: 1 }];
+    expect(calculateOrder(req, c, date).total).toBe(53);
+    req.items[0].optionals = [{ groupId: 11, itemId: 'border', quantity: 1 }];
+    expect(calculateOrder(req, c, date).total).toBe(57);
+    req.items[0].optionals.push({ groupId: 10, itemId: 'border', quantity: 1 });
+    expect(() => calculateOrder(req, c, date)).toThrow('apenas uma borda');
+  });
+  it('does not allow a border merely because its category is compatible but has no selected flavor', () => {
+    const { c, req } = setup();
+    req.items[0].flavors!.pop();
+    req.items[0].optionals = [{ groupId: 11, itemId: 'border', quantity: 1 }];
+    expect(() => calculateOrder(req, c, date)).toThrow(
+      'Opcional não permitido',
+    );
+    c.groups[1].categoryIds = [1];
+    expect(calculateOrder(req, c, date).total).toBe(47);
+    c.groups[1].items[0].sizePrices = [{ sizeId: 'small', price: 4 }];
+    expect(() => calculateOrder(req, c, date)).toThrow('sem preço');
+  });
+});
