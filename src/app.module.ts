@@ -1,3 +1,5 @@
+import { PizzeriaSettingsModule } from './pizzeria-settings/pizzeria-settings.module';
+import { ManualOrdersModule } from './manual-orders/manual-orders.module';
 import { NeighborhoodsModule } from './neighborhoods/neighborhoods.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { OrdersModule } from './orders/orders.module';
@@ -39,6 +41,8 @@ import { CategoriesModule } from './categories/categories.module';
     NeighborhoodsModule,
     PaymentMethodsModule,
     OrdersModule,
+    ManualOrdersModule,
+    PizzeriaSettingsModule,
     StoreSettingsModule,
   ],
 })
