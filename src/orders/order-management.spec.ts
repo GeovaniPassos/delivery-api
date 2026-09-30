@@ -83,6 +83,16 @@ describe('Order progression and tracking', () => {
           expectedStatus: order.status as AdvanceOrderDto['expectedStatus'],
         });
         expect(result.status).toBe(status);
+        if (
+          fulfillment === 'delivery' &&
+          ['out_for_delivery', 'completed'].includes(status)
+        ) {
+          expect(result.dispatchedAt).toBeInstanceOf(Date);
+          if (status === 'completed')
+            expect(repo.update).toHaveBeenLastCalledWith(expect.anything(), {
+              status: 'completed',
+            });
+        }
       }
       await expect(
         service.advance(1, { expectedStatus: 'completed' }),

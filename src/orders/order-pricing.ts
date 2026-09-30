@@ -141,6 +141,16 @@ export function calculateOrder(
       const group = catalog.groups.find((g) => g.id === selected.groupId);
       if (!group)
         fail('Um grupo de opcionais foi removido. Revise o carrinho.');
+      const root = catalog.categories.find((c) => c.id === categoryId);
+      const crustCategory =
+        group!.category ??
+        catalog.categories.find((c) => c.id === group!.categoryId);
+      const sharedCrust =
+        group!.kind === 'pizza-crust' &&
+        (group!.categoryId === categoryId ||
+          group!.categoryIds?.includes(categoryId) ||
+          (group!.categoryId != null &&
+            root?.compatibleCategoryIds?.includes(group!.categoryId)));
       const applicable =
         line.type === 'product'
           ? group!.kind === 'general' &&
@@ -153,7 +163,7 @@ export function calculateOrder(
               group!.categoryId === flavorPizza.categoryId
             : group!.kind !== 'general' &&
               group!.scope === 'category' &&
-              group!.categoryId === categoryId;
+              (group!.categoryId === categoryId || sharedCrust);
       if (!applicable) fail('Opcional não permitido para este produto.');
       const item = group!.items.find((i) => i.id === selected.itemId);
       if (!item) fail('Um opcional não existe mais.');
@@ -173,9 +183,19 @@ export function calculateOrder(
       )
         fail('Limite total excedido em ' + group!.name + '.');
       totals.set(group!.id, total);
+      const selectedSize = root?.pizzaSizes?.find((s) => s.id === line.sizeId);
+      const crustSizeId =
+        group!.categoryId === categoryId
+          ? line.sizeId
+          : crustCategory?.pizzaSizes?.find(
+              (s) =>
+                selectedSize &&
+                normalizedSizeName(s.name) ===
+                  normalizedSizeName(selectedSize.name),
+            )?.id;
       const price =
         group!.kind === 'pizza-crust'
-          ? item!.sizePrices.find((p) => p.sizeId === line.sizeId)?.price
+          ? item!.sizePrices.find((p) => p.sizeId === crustSizeId)?.price
           : item!.price;
       if (price == null) fail('Opcional sem preço para este tamanho.');
       if (group!.kind === 'pizza-crust') crustCount += selected.quantity;

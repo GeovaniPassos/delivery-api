@@ -1,5 +1,5 @@
-import { Order } from "../orders/entities/order.entity";
-import { manualTransfer } from "./manual-transfer";
+import { Order } from '../orders/entities/order.entity';
+import { manualTransfer } from './manual-transfer';
 import {
   Body,
   Controller,
@@ -14,17 +14,18 @@ import {
   Put,
   Post,
   ConflictException,
-} from "@nestjs/common";
-import { TypeOrmModule } from "@nestjs/typeorm";
+} from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   Column,
   DataSource,
   Entity,
   PrimaryColumn,
   UpdateDateColumn,
-} from "typeorm";
+} from 'typeorm';
 import {
   IsArray,
+  IsDateString,
   IsInt,
   Min,
   IsIn,
@@ -35,21 +36,25 @@ import {
   MaxLength,
   ValidateNested,
   ArrayMaxSize,
-} from "class-validator";
-import { Type } from "class-transformer";
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 // Notes deliberately allow incomplete customer details and unfinished item drafts.
 class ManualNoteData {
+  @IsOptional() @IsDateString() createdAt?: string;
   @IsUUID() id!: string;
   @IsOptional() @IsInt() @Min(0) revision?: number;
   @IsOptional() @IsInt() transferredOrderId?: number;
   @IsString() @MaxLength(500) name!: string;
   @IsArray() @ArrayMaxSize(1000) items!: unknown[];
   @IsObject() customer!: Record<string, unknown>;
-  @IsOptional() @IsIn(["open", "cancelled", "transferred"]) lifecycle?:
-    "open" | "cancelled" | "transferred";
-  @IsOptional() @IsIn(["ready", "out_for_delivery"]) transferTarget?:
-    "ready" | "out_for_delivery";
+  @IsOptional() @IsIn(['open', 'cancelled', 'transferred']) lifecycle?:
+    | 'open'
+    | 'cancelled'
+    | 'transferred';
+  @IsOptional() @IsIn(['ready', 'out_for_delivery']) transferTarget?:
+    | 'ready'
+    | 'out_for_delivery';
   @IsObject() @IsOptional() pendingItem?: Record<string, unknown>;
 }
 export class SaveManualNoteDto {
@@ -59,12 +64,12 @@ export class SaveManualNoteDto {
   data!: ManualNoteData;
 }
 export class TransferManualNoteDto extends SaveManualNoteDto {
-  @IsIn(["ready", "out_for_delivery"]) target!: "ready" | "out_for_delivery";
+  @IsIn(['ready', 'out_for_delivery']) target!: 'ready' | 'out_for_delivery';
 }
-@Entity("manual_order_notes")
+@Entity('manual_order_notes')
 export class ManualOrderNote {
-  @PrimaryColumn("uuid") id!: string;
-  @Column("jsonb") data!: object;
+  @PrimaryColumn('uuid') id!: string;
+  @Column('jsonb') data!: object;
   @UpdateDateColumn() updatedAt!: Date;
 }
 @Injectable()
@@ -73,11 +78,11 @@ export class ManualOrdersService {
   list() {
     return this.dataSource
       .getRepository(ManualOrderNote)
-      .find({ order: { updatedAt: "ASC" } });
+      .find({ order: { updatedAt: 'ASC' } });
   }
   async save(id: string, dto: SaveManualNoteDto) {
     return this.dataSource.transaction(async (manager) => {
-      await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [id]);
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [id]);
       const notes = manager.getRepository(ManualOrderNote);
       const existing = await notes.findOneBy({ id });
       if (
@@ -88,7 +93,7 @@ export class ManualOrdersService {
         return existing;
       const lifecycle = (existing?.data as { lifecycle?: string } | undefined)
         ?.lifecycle;
-      if (lifecycle === "transferred" || lifecycle === "cancelled")
+      if (lifecycle === 'transferred' || lifecycle === 'cancelled')
         return existing!;
       return notes.save(
         notes.create({
@@ -97,7 +102,7 @@ export class ManualOrdersService {
             ...dto.data,
             id,
             lifecycle:
-              dto.data.lifecycle === "cancelled" ? "cancelled" : "open",
+              dto.data.lifecycle === 'cancelled' ? 'cancelled' : 'open',
           },
         }),
       );
@@ -105,7 +110,7 @@ export class ManualOrdersService {
   }
   async transfer(id: string, dto: TransferManualNoteDto) {
     return this.dataSource.transaction(async (manager) => {
-      await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [id]);
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [id]);
       const notes = manager.getRepository(ManualOrderNote);
       const existing = await notes.findOneBy({ id });
       if (
@@ -116,20 +121,23 @@ export class ManualOrdersService {
         return existing;
       const lifecycle = (existing?.data as { lifecycle?: string } | undefined)
         ?.lifecycle;
-      if (lifecycle === "transferred") return existing!;
-      if (lifecycle === "cancelled")
-        throw new ConflictException("Este card foi cancelado.");
+      if (lifecycle === 'transferred') return existing!;
+      if (lifecycle === 'cancelled')
+        throw new ConflictException('Este card foi cancelado.');
       const orders = manager.getRepository(Order);
       const snapshot = manualTransfer(dto.data, dto.target);
       const previous = await orders.findOneBy({ requestId: id });
-      if (previous && previous.status !== "manual_draft")
-        throw new ConflictException("O pedido já está em outra etapa.");
+      if (previous && previous.status !== 'manual_draft')
+        throw new ConflictException('O pedido já está em outra etapa.');
       const order = await orders.save(
         orders.create({
           ...previous,
           ...snapshot,
+          createdAt:
+            previous?.createdAt ??
+            (dto.data.createdAt ? new Date(dto.data.createdAt) : new Date()),
           requestId: id,
-          requestHash: "manual",
+          requestHash: 'manual',
         }),
       );
       return notes.save(
@@ -138,7 +146,7 @@ export class ManualOrdersService {
           data: {
             ...dto.data,
             id,
-            lifecycle: "transferred",
+            lifecycle: 'transferred',
             transferredOrderId: order.id,
             transferTarget: undefined,
           },
@@ -150,33 +158,33 @@ export class ManualOrdersService {
     const reference = await this.dataSource
       .getRepository(Order)
       .findOneBy({ id: orderId });
-    if (!reference || reference.source !== "manual")
-      throw new NotFoundException("Pedido manual não encontrado.");
+    if (!reference || reference.source !== 'manual')
+      throw new NotFoundException('Pedido manual não encontrado.');
     return this.dataSource.transaction(async (manager) => {
-      await manager.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
         reference.requestId,
       ]);
       const orders = manager.getRepository(Order);
       const order = await orders.findOne({
         where: { id: orderId },
-        lock: { mode: "pessimistic_write" },
+        lock: { mode: 'pessimistic_write' },
       });
-      if (!order) throw new NotFoundException("Pedido não encontrado.");
+      if (!order) throw new NotFoundException('Pedido não encontrado.');
       const notes = manager.getRepository(ManualOrderNote);
       const note = await notes.findOneBy({ id: order.requestId });
-      if (!note) throw new NotFoundException("Card original não encontrado.");
-      if (order.status === "manual_draft") return note;
-      if (!["ready", "out_for_delivery"].includes(order.status))
+      if (!note) throw new NotFoundException('Card original não encontrado.');
+      if (order.status === 'manual_draft') return note;
+      if (!['ready', 'out_for_delivery'].includes(order.status))
         throw new ConflictException(
-          "Apenas pedidos aguardando retirada ou em entrega podem voltar à edição.",
+          'Apenas pedidos aguardando retirada ou em entrega podem voltar à edição.',
         );
       const data = note.data as ManualNoteData;
-      await orders.update(order.id, { status: "manual_draft" });
+      await orders.update(order.id, { status: 'manual_draft' });
       return notes.save({
         ...note,
         data: {
           ...data,
-          lifecycle: "open",
+          lifecycle: 'open',
           revision: (data.revision ?? 0) + 1,
           transferTarget: undefined,
         },
@@ -184,23 +192,23 @@ export class ManualOrdersService {
     });
   }
 }
-@Controller("manual-orders")
+@Controller('manual-orders')
 export class ManualOrdersController {
   constructor(private readonly service: ManualOrdersService) {}
-  @Get() @Header("Cache-Control", "no-store") list() {
+  @Get() @Header('Cache-Control', 'no-store') list() {
     return this.service.list();
   }
-  @Post("from-order/:id/reopen") reopen(@Param("id", ParseIntPipe) id: number) {
+  @Post('from-order/:id/reopen') reopen(@Param('id', ParseIntPipe) id: number) {
     return this.service.reopen(id);
   }
-  @Post(":id/transfer") transfer(
-    @Param("id", ParseUUIDPipe) id: string,
+  @Post(':id/transfer') transfer(
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: TransferManualNoteDto,
   ) {
     return this.service.transfer(id, dto);
   }
-  @Put(":id") save(
-    @Param("id", ParseUUIDPipe) id: string,
+  @Put(':id') save(
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SaveManualNoteDto,
   ) {
     return this.service.save(id, dto);

@@ -58,14 +58,12 @@ export class OrdersService {
       ? await manager.getRepository(Category).findBy({ id: In(categoryIds) })
       : [];
     if (categoryIds.length) {
-      const links = await manager
-        .getRepository(PizzaCategoryCombination)
-        .find({
-          where: [
-            { categoryId: In(categoryIds) },
-            { compatibleCategoryId: In(categoryIds) },
-          ],
-        });
+      const links = await manager.getRepository(PizzaCategoryCombination).find({
+        where: [
+          { categoryId: In(categoryIds) },
+          { compatibleCategoryId: In(categoryIds) },
+        ],
+      });
       categories.forEach(
         (category) =>
           (category.compatibleCategoryIds = combinationIds(category.id, links)),
@@ -74,7 +72,10 @@ export class OrdersService {
     const groups = groupIds.length
       ? await manager
           .getRepository(OptionalGroup)
-          .find({ where: { id: In(groupIds) }, relations: { products: true } })
+          .find({
+            where: { id: In(groupIds) },
+            relations: { products: true, category: true },
+          })
       : [];
     const neighborhood =
       dto.fulfillment === 'delivery'
@@ -167,6 +168,7 @@ export class OrdersService {
             payment = {
               id: method.id,
               type: method.type,
+              name: method.name,
               pixKey: method.pixKey,
               holderName: method.holderName,
               description: method.description,
@@ -239,6 +241,7 @@ export class OrdersService {
       fulfillment: order.fulfillment,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
+      dispatchedAt: order.dispatchedAt,
       estimatedMinutes: order.estimatedMinutes,
       items: order.items,
       subtotal: order.subtotal,
@@ -309,7 +312,10 @@ export class OrdersService {
     if (!next) throw new ConflictException('Este pedido não pode avançar.');
     const result = await repo.update(
       { id, status: dto.expectedStatus },
-      { status: next },
+      {
+        status: next,
+        ...(next === 'out_for_delivery' ? { dispatchedAt: new Date() } : {}),
+      },
     );
     if (!result.affected)
       throw new ConflictException(

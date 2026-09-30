@@ -9,7 +9,12 @@ import {
 } from 'class-validator';
 import type { PaymentType } from '../entities/payment-method.entity';
 export class SavePaymentMethodDto {
-  @IsIn(['cash', 'card', 'pix']) type!: PaymentType;
+  @IsIn(['cash', 'card', 'pix', 'other']) type!: PaymentType;
+  @ValidateIf((o) => o.type === 'other')
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @Length(2, 120)
+  name?: string;
   @IsBoolean() active!: boolean;
   @ValidateIf((o) => o.type === 'pix')
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))

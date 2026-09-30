@@ -6,5 +6,7 @@ export const categoryIcons = [
   'drink',
   'snack',
   'soda',
+  'sweets',
+  'misc',
 ] as const;
 export type CategoryIcon = (typeof categoryIcons)[number];

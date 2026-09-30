@@ -14,7 +14,8 @@ export interface OrderQuote {
 }
 export interface OrderPayment {
   id: number;
-  type: 'cash' | 'card' | 'pix';
+  name?: string | null;
+  type: 'cash' | 'card' | 'pix' | 'other';
   pixKey: string | null;
   holderName: string | null;
   description: string;

@@ -21,6 +21,8 @@ export class OptionalGroup {
   @Column({ type: 'varchar', length: 20 }) kind!: OptionalKind;
   @Column({ type: 'varchar', length: 20 }) scope!: OptionalScope;
   @Column({ type: 'int', nullable: true }) categoryId!: number | null;
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  categoryIds!: number[];
   @ManyToOne(() => Category, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'categoryId' })
   category!: Category | null;

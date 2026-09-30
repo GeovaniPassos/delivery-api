@@ -52,6 +52,13 @@ export class CreateOptionalGroupDto {
   @IsInt({ each: true })
   @Min(1, { each: true })
   productIds!: number[];
+  @ValidateIf((_, v) => v !== undefined)
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  categoryIds?: number[];
   @IsBoolean() quantitative!: boolean;
   @IsInt() @Min(0) @Max(100) maxTotal!: number;
   @IsInt() @Min(0) @Max(100) maxPerOption!: number;

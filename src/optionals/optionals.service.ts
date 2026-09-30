@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { DataSource, In } from 'typeorm';
 import { Category } from '../categories/entities/category.entity';
 import { Product } from '../products/entities/product.entity';
@@ -13,12 +17,10 @@ export class OptionalsService {
   }
   async findAll() {
     return (
-      await this.dataSource
-        .getRepository(OptionalGroup)
-        .find({
-          relations: { category: true, products: true },
-          order: { id: 'ASC' },
-        })
+      await this.dataSource.getRepository(OptionalGroup).find({
+        relations: { category: true, products: true },
+        order: { id: 'ASC' },
+      })
     ).map((g) => this.response(g));
   }
   create(dto: CreateOptionalGroupDto) {
@@ -42,25 +44,36 @@ export class OptionalsService {
       const category =
         dto.categoryId === null
           ? null
-          : await manager
-              .getRepository(Category)
-              .findOne({
-                where: { id: dto.categoryId },
-                lock: { mode: 'pessimistic_write' },
-              });
+          : await manager.getRepository(Category).findOne({
+              where: { id: dto.categoryId },
+              lock: { mode: 'pessimistic_write' },
+            });
       const products = dto.productIds.length
-        ? await manager
-            .getRepository(Product)
-            .find({
-              where: { id: In(dto.productIds) },
-              relations: { category: true },
-            })
+        ? await manager.getRepository(Product).find({
+            where: { id: In(dto.productIds) },
+            relations: { category: true },
+          })
         : [];
+      const categoryIds = dto.categoryIds ?? [];
+      if (categoryIds.length) {
+        const linked = await manager
+          .getRepository(Category)
+          .find({ where: { id: In(categoryIds) } });
+        if (
+          dto.kind !== 'pizza-crust' ||
+          linked.length !== categoryIds.length ||
+          linked.some((c) => !c.isPizza)
+        )
+          throw new BadRequestException(
+            'Selecione apenas categorias de pizza para as bordas.',
+          );
+      }
       const items = validateOptionalGroup(dto, category, products, previous);
       const { productIds, ...fields } = dto;
       const group = repo.create({
         ...previous,
         ...fields,
+        categoryIds,
         items,
         category,
         products,

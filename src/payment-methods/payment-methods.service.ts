@@ -25,6 +25,7 @@ export class PaymentMethodsService {
         this.repo.create({
           ...previous,
           type: dto.type,
+          name: dto.type === 'other' ? dto.name!.trim() : null,
           active: dto.active,
           pixKey: dto.type === 'pix' ? dto.pixKey! : null,
           holderName: dto.type === 'pix' ? dto.holderName! : null,
