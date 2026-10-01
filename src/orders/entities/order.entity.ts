@@ -51,6 +51,6 @@ export class Order {
   @Column({ default: 'received' }) status!: string;
   @Column({ type: 'int', nullable: true }) estimatedMinutes!: number | null;
   @Column({ type: 'timestamptz', nullable: true }) dispatchedAt!: Date | null;
-  @CreateDateColumn() createdAt!: Date;
-  @UpdateDateColumn() updatedAt!: Date;
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt!: Date;
+  @UpdateDateColumn({ type: 'timestamptz' }) updatedAt!: Date;
 }

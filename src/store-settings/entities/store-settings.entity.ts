@@ -12,5 +12,5 @@ export class StoreSettings {
   @Column({ default: true }) isOpen!: boolean;
   @Column({ type: 'int', nullable: true }) deliveryMinutes!: number | null;
   @Column({ type: 'int', nullable: true }) pickupMinutes!: number | null;
-  @UpdateDateColumn() updatedAt!: Date;
+  @UpdateDateColumn({ type: 'timestamptz' }) updatedAt!: Date;
 }

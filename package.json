@@ -6,7 +6,8 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "db:update": "node scripts/update-database.cjs",
+    "db:update": "node scripts/update-database.cjs && node scripts/update-database.cjs --timestamps",
+    "db:verify-timestamps": "node scripts/verify-timestamps.cjs",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

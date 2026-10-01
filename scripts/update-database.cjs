@@ -7,7 +7,10 @@ require('dotenv').config({
   quiet: true,
 });
 
-const version = '20260930-manual-orders-and-settings';
+const timestamps = process.argv.includes('--timestamps');
+const version = timestamps
+  ? '20261001-timestamps-with-timezone'
+  : '20260930-manual-orders-and-settings';
 const quote = (identifier) => '"' + identifier.replaceAll('"', '""') + '"';
 const digest = (text) => createHash('sha256').update(text).digest('hex');
 const client = new Client({
@@ -115,6 +118,13 @@ async function main() {
     });
     await client.query(sql);
     for (const [table, original] of Object.entries(backup.tables)) {
+      // The timestamp SQL validates every original field and the expected instant
+      // inside the same transaction. Raw JSON dates intentionally change format.
+      if (
+        timestamps &&
+        ['orders', 'manual_order_notes', 'store_settings'].includes(table)
+      )
+        continue;
       const current = await rows(qualified(table), original.columns);
       if (
         digest(JSON.stringify(current)) !==

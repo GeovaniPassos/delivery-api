@@ -70,7 +70,7 @@ export class TransferManualNoteDto extends SaveManualNoteDto {
 export class ManualOrderNote {
   @PrimaryColumn('uuid') id!: string;
   @Column('jsonb') data!: object;
-  @UpdateDateColumn() updatedAt!: Date;
+  @UpdateDateColumn({ type: 'timestamptz' }) updatedAt!: Date;
 }
 @Injectable()
 export class ManualOrdersService {
