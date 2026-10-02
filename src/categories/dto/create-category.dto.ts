@@ -21,6 +21,11 @@ import { PizzaPricingRule } from '../model/pizza-settings';
 import { categoryIcons } from '../model/category-icon';
 import type { CategoryIcon } from '../model/category-icon';
 export class PizzaSizeDto {
+  @ValidateIf((_, value) => value !== undefined)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  maxFlavors?: number;
   @ValidateIf((_, value) => value !== undefined) @IsUUID() id?: string;
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()

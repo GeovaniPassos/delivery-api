@@ -163,7 +163,12 @@ describe('Order pricing', () => {
     expect(calculateOrder(req, c, date).total).toBe(106);
     cat.pricingRule = 'highest';
     expect(calculateOrder(req, c, date).total).toBe(126);
+    cat.pizzaSizes[0].maxFlavors = 1;
+    expect(() => calculateOrder(req, c, date)).toThrow('Quantidade de sabores');
+    cat.pizzaSizes[0].maxFlavors = 2;
     cat.maxFlavors = 1;
+    expect(calculateOrder(req, c, date).total).toBe(126);
+    delete cat.pizzaSizes[0].maxFlavors;
     expect(() => calculateOrder(req, c, date)).toThrow('Quantidade de sabores');
   });
 });
@@ -255,7 +260,7 @@ describe('Mixed pizza configuration', () => {
     req.items[0].flavors!.push({ ...req.items[0].flavors![0], pizzaId: 3 });
     expect(() => calculateOrder(req, c, date)).toThrow('Quantidade de sabores');
   });
-  it('rejects unauthorized categories, single-flavor substitutions and mismatched sizes', () => {
+  it('rejects unauthorized categories and mismatched sizes, but allows linked single flavors', () => {
     const { c, req } = mixedPizza();
     c.categories[0].compatibleCategoryIds = [];
     expect(() => calculateOrder(req, c, date)).toThrow(
@@ -272,9 +277,7 @@ describe('Mixed pizza configuration', () => {
     expect(() => calculateOrder(req, c, date)).toThrow('não está disponível');
     c.pizzas[1].availableDays = [1];
     req.items[0].flavors!.shift();
-    expect(() => calculateOrder(req, c, date)).toThrow(
-      'Sabor de pizza inválido',
-    );
+    expect(calculateOrder(req, c, date).total).toBe(115);
   });
   it('restricts extras to their flavor category, rejects borders inside flavors and shares limits', () => {
     const { c, req } = mixedPizza();
@@ -339,10 +342,12 @@ describe('Borders of selected flavor categories', () => {
     req.items[0].optionals.push({ groupId: 10, itemId: 'border', quantity: 1 });
     expect(() => calculateOrder(req, c, date)).toThrow('apenas uma borda');
   });
-  it('does not allow a border merely because its category is compatible but has no selected flavor', () => {
+  it('allows compatible category borders without a selected flavor and rejects unrelated categories', () => {
     const { c, req } = setup();
     req.items[0].flavors!.pop();
     req.items[0].optionals = [{ groupId: 11, itemId: 'border', quantity: 1 }];
+    expect(calculateOrder(req, c, date).total).toBe(47);
+    c.categories[0].compatibleCategoryIds = [];
     expect(() => calculateOrder(req, c, date)).toThrow(
       'Opcional não permitido',
     );

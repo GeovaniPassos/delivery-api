@@ -103,14 +103,6 @@ export class CategoriesService {
           );
         const validIds = new Set(category.pizzaSizes.map((size) => size.id));
         if (
-          pizzas.some((pizza) =>
-            pizza.prices.some((price) => !validIds.has(price.sizeId)),
-          )
-        )
-          throw new ConflictException(
-            'Não é possível remover um tamanho com preços cadastrados. Você pode renomeá-lo.',
-          );
-        if (
           groups.some((group) =>
             group.items.some((item) =>
               item.sizePrices.some((price) => !validIds.has(price.sizeId)),
@@ -120,6 +112,13 @@ export class CategoriesService {
           throw new ConflictException(
             'Não é possível remover um tamanho com bordas cadastradas. Edite os opcionais primeiro.',
           );
+        for (const pizza of pizzas) {
+          const prices = pizza.prices.filter((price) =>
+            validIds.has(price.sizeId),
+          );
+          if (prices.length !== pizza.prices.length)
+            await manager.getRepository(Pizza).update(pizza.id, { prices });
+        }
         const current = await this.links(manager, id);
         category.compatibleCategoryIds = await this.syncCombinations(
           manager,

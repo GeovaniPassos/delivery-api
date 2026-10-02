@@ -19,6 +19,17 @@ export function configurePizzaCategory(
     throw new BadRequestException(
       'Informe ao menos um tamanho para a categoria de pizza.',
     );
+  const limits = sizes.map((size) => size.maxFlavors ?? category.maxFlavors);
+  if (
+    limits.some(
+      (limit) => !Number.isInteger(limit) || limit! < 1 || limit! > 20,
+    )
+  )
+    throw new BadRequestException(
+      'Informe um limite de 1 a 20 sabores para cada tamanho.',
+    );
+  if (sizes.some((size) => size.maxFlavors !== undefined))
+    category.maxFlavors = Math.max(...(limits as number[]));
   if (
     !Number.isInteger(category.maxFlavors) ||
     category.maxFlavors! < 1 ||
@@ -42,5 +53,6 @@ export function configurePizzaCategory(
   category.pizzaSizes = sizes.map((size) => ({
     id: size.id ?? randomUUID(),
     name: size.name.trim(),
+    ...(size.maxFlavors !== undefined ? { maxFlavors: size.maxFlavors } : {}),
   }));
 }

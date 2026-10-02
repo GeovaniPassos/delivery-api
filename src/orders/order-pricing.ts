@@ -77,7 +77,7 @@ export function calculateOrder(
       if (!size) fail('Tamanho de pizza indisponível.');
       if (
         !line.flavors?.length ||
-        line.flavors.length > (category!.maxFlavors ?? 0)
+        line.flavors.length > (size!.maxFlavors ?? category!.maxFlavors ?? 0)
       )
         fail('Quantidade de sabores inválida.');
       if (line.removedIngredients.length)
@@ -89,8 +89,7 @@ export function calculateOrder(
         const compatible =
           pizza &&
           (pizza.categoryId === categoryId ||
-            (line.flavors!.length > 1 &&
-              category!.compatibleCategoryIds?.includes(pizza.categoryId) &&
+            (category!.compatibleCategoryIds?.includes(pizza.categoryId) &&
               pizza.category.isPizza &&
               (pizza.category.maxFlavors ?? 1) > 1));
         if (!compatible) fail('Sabor de pizza inválido para esta categoria.');
@@ -104,6 +103,11 @@ export function calculateOrder(
               );
         if (!flavorSize)
           fail('Um sabor não possui tamanho equivalente ao selecionado.');
+        if (
+          line.flavors!.length >
+          (flavorSize!.maxFlavors ?? pizza!.category.maxFlavors ?? 1)
+        )
+          fail('Quantidade de sabores inválida para este tamanho.');
         const price = pizza!.prices.find((p) => p.sizeId === flavorSize!.id);
         if (!price) fail('Um sabor não tem preço para este tamanho.');
         details.push(
@@ -152,6 +156,9 @@ export function calculateOrder(
           (f) => catalog.pizzas.find((p) => p.id === f.pizzaId)?.categoryId,
         ),
       );
+      selectedCategoryIds.add(categoryId);
+      for (const id of root?.compatibleCategoryIds ?? [])
+        selectedCategoryIds.add(id);
       const sharedCrust =
         group!.kind === 'pizza-crust' &&
         ((group!.categoryId !== null &&

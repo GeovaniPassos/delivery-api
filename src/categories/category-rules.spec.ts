@@ -51,4 +51,18 @@ describe('Category pizza rules', () => {
       pricingRule: null,
     });
   });
+  it('persists limits by size and derives the category maximum', () => {
+    const category = create();
+    configurePizzaCategory(category, [
+      { name: 'Pequena', maxFlavors: 1 },
+      { name: 'Grande', maxFlavors: 4 },
+    ]);
+    expect(category.maxFlavors).toBe(4);
+    expect(category.pizzaSizes.map((s) => s.maxFlavors)).toEqual([1, 4]);
+    for (const maxFlavors of [0, 21, 1.5]) {
+      expect(() =>
+        configurePizzaCategory(create(), [{ name: 'Grande', maxFlavors }]),
+      ).toThrow();
+    }
+  });
 });

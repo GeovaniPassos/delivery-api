@@ -32,7 +32,10 @@ describe('CategoriesService', () => {
       delete: jest.fn(async () => ({ affected: 1 })),
     };
     products = { countBy: jest.fn(async () => 0) };
-    pizzas = { findBy: jest.fn(async () => []) };
+    pizzas = {
+      findBy: jest.fn(async () => []),
+      update: jest.fn(async () => ({})),
+    };
     optionals = { findBy: jest.fn(async () => []) };
     combinations = {
       find: jest.fn(async () => []),
@@ -74,13 +77,15 @@ describe('CategoriesService', () => {
       isPizza: true,
     });
   });
-  it('rejects removing a priced size and changing a category with pizzas into products', async () => {
+  it('removes size prices from all flavors and rejects converting a pizza category', async () => {
     pizzas.findBy.mockResolvedValue([
-      { prices: [{ sizeId: size.id, price: 30 }] },
+      { id: 1, prices: [{ sizeId: size.id, price: 30 }] },
+      { id: 2, prices: [{ sizeId: size.id, price: 45 }] },
     ]);
-    await expect(
-      service.update(1, { pizzaSizes: [{ name: 'Nova' }] }),
-    ).rejects.toThrow(ConflictException);
+    await service.update(1, { pizzaSizes: [{ name: 'Nova' }] });
+    expect(pizzas.update).toHaveBeenCalledWith(1, { prices: [] });
+    expect(pizzas.update).toHaveBeenCalledWith(2, { prices: [] });
+    categories.save.mockClear();
     await expect(service.update(1, { isPizza: false })).rejects.toThrow(
       ConflictException,
     );
