@@ -243,10 +243,10 @@ function mixedPizza() {
   return { c, req };
 }
 describe('Mixed pizza configuration', () => {
-  it('matches size names across IDs, applies root pricing and charges full extras for each flavor', () => {
+  it('matches size names across IDs, applies root pricing and charges half-price extras for each flavor', () => {
     const { c, req } = mixedPizza();
     const result = calculateOrder(req, c, date);
-    expect(result.total).toBe(105); // (average 45 + 5 + 2.50) * 2
+    expect(result.total).toBe(97.5); // (average 45 + 2.50 + 1.25) * 2
     expect(result.items[0].details).toEqual(
       expect.arrayContaining([
         'Sem Queijo (Salgada)',
@@ -256,7 +256,7 @@ describe('Mixed pizza configuration', () => {
       ]),
     );
     c.categories[0].pricingRule = 'highest' as Category['pricingRule'];
-    expect(calculateOrder(req, c, date).total).toBe(125);
+    expect(calculateOrder(req, c, date).total).toBe(117.5);
     req.items[0].flavors!.push({ ...req.items[0].flavors![0], pizzaId: 3 });
     expect(() => calculateOrder(req, c, date)).toThrow('Quantidade de sabores');
   });
@@ -277,7 +277,7 @@ describe('Mixed pizza configuration', () => {
     expect(() => calculateOrder(req, c, date)).toThrow('não está disponível');
     c.pizzas[1].availableDays = [1];
     req.items[0].flavors!.shift();
-    expect(calculateOrder(req, c, date).total).toBe(115);
+    expect(calculateOrder(req, c, date).total).toBe(112.5);
   });
   it('restricts extras to their flavor category, rejects borders inside flavors and shares limits', () => {
     const { c, req } = mixedPizza();
@@ -294,7 +294,7 @@ describe('Mixed pizza configuration', () => {
     c.groups[0].maxTotal = 2;
     expect(() => calculateOrder(req, c, date)).toThrow('Limite total');
     c.groups[0].maxTotal = 0;
-    expect(calculateOrder(req, c, date).total).toBe(105);
+    expect(calculateOrder(req, c, date).total).toBe(97.5);
     c.groups[0].kind = 'pizza-crust';
     expect(() => calculateOrder(req, c, date)).toThrow(
       'Opcional não permitido',

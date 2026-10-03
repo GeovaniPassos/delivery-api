@@ -215,7 +215,7 @@ export function calculateOrder(
       if (price == null) fail('Opcional sem preço para este tamanho.');
       if (group!.kind === 'pizza-crust') crustCount += selected.quantity;
       if (crustCount > 1) fail('Escolha apenas uma borda por pizza.');
-      extras += cents(price!) * selected.quantity;
+      extras += Math.round(cents(price!) * (flavorPizza ? 0.5 : 1)) * selected.quantity;
       details.push(
         '+ ' +
           selected.quantity +
