@@ -54,6 +54,7 @@ describe('Order progression and tracking', () => {
       select: jest.fn().mockReturnThis(),
       addSelect: jest.fn().mockReturnThis(),
       groupBy: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
       getRawMany: jest.fn().mockResolvedValue([
         { status: 'received', count: '1' },
         { status: 'accepted', count: '2' },
@@ -140,6 +141,58 @@ describe('Order progression and tracking', () => {
     for (const value of [result.items[0], await service.findOne(1)])
       for (const key of ['trackingToken', 'requestId', 'requestHash'])
         expect(value).not.toHaveProperty(key);
+  });
+  it('filters pickup and dates using Brazil midnight, including counters', async () => {
+    await service.list({
+      group: 'waiting',
+      page: 1,
+      date: '2026-10-03',
+      fulfillment: 'pickup',
+    });
+    const filter = repo.findAndCount.mock.calls[0][0].where;
+    expect(filter.fulfillment).toBe('pickup');
+    expect(filter.createdAt.objectLiteralParameters).toEqual({
+      start: new Date('2026-10-03T03:00:00Z'),
+      end: new Date('2026-10-04T03:00:00Z'),
+    });
+    expect(repo.createQueryBuilder().where).toHaveBeenCalledWith(
+      'o.createdAt >= :start AND o.createdAt < :end',
+      filter.createdAt.objectLiteralParameters,
+    );
+  });
+  it('searches names or partial order numbers across all stages', async () => {
+    await service.list({ group: 'all', page: 1, search: '#123' });
+    const filters = repo.findAndCount.mock.calls[0][0].where;
+    expect(filters).toHaveLength(2);
+    expect(filters[0].status).toBeUndefined();
+    expect(filters[0].customerName.value).toBe('%123%');
+    expect(filters[1].id.objectLiteralParameters).toEqual({
+      orderNumber: '%123%',
+    });
+  });
+  it('validates dates and optional search filters', async () => {
+    expect(
+      await validate(
+        plainToInstance(ListOrdersDto, {
+          group: 'all',
+          search: 'Ana',
+          date: '2026-10-03',
+          fulfillment: 'delivery',
+        }),
+      ),
+    ).toEqual([]);
+    for (const date of ['2026-02-30', '2026-10-03T12:00:00Z', 'invalid']) {
+      expect(
+        (await validate(plainToInstance(ListOrdersDto, { date }))).length,
+      ).toBeGreaterThan(0);
+    }
+    expect(
+      (
+        await validate(
+          plainToInstance(ListOrdersDto, { search: 'a'.repeat(101) }),
+        )
+      ).length,
+    ).toBeGreaterThan(0);
   });
   it('validates filters, pagination and expected status', async () => {
     expect(await validate(plainToInstance(ListOrdersDto, {}))).toEqual([]);

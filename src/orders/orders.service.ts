@@ -5,7 +5,15 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { DataSource, EntityManager, In, QueryFailedError } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  In,
+  QueryFailedError,
+  Raw,
+  ILike,
+  FindOptionsWhere,
+} from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
 import { ListOrdersDto, AdvanceOrderDto } from './dto/manage-order.dto';
 import { nextOrderStatus, orderGroups } from './model/order-status';
@@ -70,12 +78,10 @@ export class OrdersService {
       );
     }
     const groups = groupIds.length
-      ? await manager
-          .getRepository(OptionalGroup)
-          .find({
-            where: { id: In(groupIds) },
-            relations: { products: true, category: true },
-          })
+      ? await manager.getRepository(OptionalGroup).find({
+          where: { id: In(groupIds) },
+          relations: { products: true, category: true },
+        })
       : [];
     const neighborhood =
       dto.fulfillment === 'delivery'
@@ -257,8 +263,31 @@ export class OrdersService {
   }
   async list(dto: ListOrdersDto) {
     const repo = this.dataSource.getRepository(Order);
+    const where: FindOptionsWhere<Order> = {};
+    if (dto.group !== 'all') where.status = In([...orderGroups[dto.group]]);
+    if (dto.fulfillment) where.fulfillment = dto.fulfillment;
+    const start = dto.date ? new Date(dto.date + 'T00:00:00-03:00') : undefined;
+    const end = start ? new Date(start.getTime() + 86400000) : undefined;
+    if (start)
+      where.createdAt = Raw(
+        (alias) => `${alias} >= :start AND ${alias} < :end`,
+        { start, end },
+      );
+    const term = dto.search?.trim().replace(/^#/, '');
+    const escaped = term?.replace(/[\\%_]/g, '\\$&');
+    const filters = term
+      ? [
+          { ...where, customerName: ILike('%' + escaped + '%') },
+          {
+            ...where,
+            id: Raw((alias) => `CAST(${alias} AS TEXT) LIKE :orderNumber`, {
+              orderNumber: '%' + escaped + '%',
+            }),
+          },
+        ]
+      : where;
     const [items, total] = await repo.findAndCount({
-      where: { status: In([...orderGroups[dto.group]]) },
+      where: filters,
       order: {
         createdAt: dto.group === 'completed' ? 'DESC' : 'ASC',
         id: dto.group === 'completed' ? 'DESC' : 'ASC',
@@ -266,12 +295,20 @@ export class OrdersService {
       take: 30,
       skip: (dto.page - 1) * 30,
     });
-    const rows = await repo
+    const countsQuery = repo
       .createQueryBuilder('o')
       .select('o.status', 'status')
       .addSelect('COUNT(*)', 'count')
-      .groupBy('o.status')
-      .getRawMany<{ status: string; count: string }>();
+      .groupBy('o.status');
+    if (start)
+      countsQuery.where('o.createdAt >= :start AND o.createdAt < :end', {
+        start,
+        end,
+      });
+    const rows = await countsQuery.getRawMany<{
+      status: string;
+      count: string;
+    }>();
     const counts = Object.fromEntries(
       Object.entries(orderGroups).map(([key, statuses]) => [
         key,
