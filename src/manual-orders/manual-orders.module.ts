@@ -85,24 +85,39 @@ export class ManualOrdersService {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [id]);
       const notes = manager.getRepository(ManualOrderNote);
       const existing = await notes.findOneBy({ id });
+      const lifecycle = (existing?.data as { lifecycle?: string } | undefined)
+        ?.lifecycle;
+      if (lifecycle === 'transferred' || lifecycle === 'cancelled')
+        return existing!;
+      // Cancellation is terminal, including when another browser saved a newer revision.
+      // Keep the record so late/offline saves cannot recreate the cancelled card.
+      if (dto.data.lifecycle === 'cancelled') {
+        return notes.save(
+          notes.create({
+            id,
+            data: {
+              ...(existing?.data ?? dto.data),
+              id,
+              lifecycle: 'cancelled',
+              transferTarget: undefined,
+              pendingItem: undefined,
+            },
+          }),
+        );
+      }
       if (
         existing &&
         ((existing.data as { revision?: number }).revision ?? 0) !==
           (dto.data.revision ?? 0)
       )
         return existing;
-      const lifecycle = (existing?.data as { lifecycle?: string } | undefined)
-        ?.lifecycle;
-      if (lifecycle === 'transferred' || lifecycle === 'cancelled')
-        return existing!;
       return notes.save(
         notes.create({
           id,
           data: {
             ...dto.data,
             id,
-            lifecycle:
-              dto.data.lifecycle === 'cancelled' ? 'cancelled' : 'open',
+            lifecycle: 'open',
           },
         }),
       );
