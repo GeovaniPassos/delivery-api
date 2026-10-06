@@ -1,5 +1,6 @@
 import { Order } from '../orders/entities/order.entity';
 import { manualTransfer } from './manual-transfer';
+import { reserveOrderNumber } from '../orders/reserve-order-number';
 import {
   Body,
   Controller,
@@ -14,12 +15,15 @@ import {
   Put,
   Post,
   ConflictException,
+  Delete,
+  GoneException,
 } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   Column,
   DataSource,
   Entity,
+  EntityManager,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -43,6 +47,7 @@ import { Type } from 'class-transformer';
 class ManualNoteData {
   @IsOptional() @IsDateString() createdAt?: string;
   @IsUUID() id!: string;
+  @IsOptional() @IsInt() @Min(1) orderNumber?: number;
   @IsOptional() @IsInt() @Min(0) revision?: number;
   @IsOptional() @IsInt() transferredOrderId?: number;
   @IsString() @MaxLength(500) name!: string;
@@ -72,39 +77,57 @@ export class ManualOrderNote {
   @Column('jsonb') data!: object;
   @UpdateDateColumn({ type: 'timestamptz' }) updatedAt!: Date;
 }
+// Retain only the deleted UUID, never the customer's data or the card contents.
+@Entity('manual_order_deletions')
+export class ManualOrderDeletion {
+  @PrimaryColumn('uuid') id!: string;
+}
 @Injectable()
 export class ManualOrdersService {
   constructor(private readonly dataSource: DataSource) {}
-  list() {
-    return this.dataSource
+  async list() {
+    const notes = await this.dataSource
       .getRepository(ManualOrderNote)
       .find({ order: { updatedAt: 'ASC' } });
+    const deleted = await this.dataSource
+      .getRepository(ManualOrderDeletion)
+      .find();
+    return [...notes, ...deleted.map(({ id }) => ({ id, deleted: true }))];
+  }
+  async remove(id: string) {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [id]);
+      return this.removeCard(manager, id);
+    });
+  }
+  private async removeCard(manager: EntityManager, id: string) {
+    const notes = manager.getRepository(ManualOrderNote);
+    const existing = await notes.findOneBy({ id });
+    if (
+      (existing?.data as ManualNoteData | undefined)?.lifecycle ===
+      'transferred'
+    )
+      throw new ConflictException('O pedido já está em outra etapa.');
+    const deletions = manager.getRepository(ManualOrderDeletion);
+    await deletions.save({ id });
+    await manager
+      .getRepository(Order)
+      .delete({ requestId: id, source: 'manual', status: 'manual_draft' });
+    await notes.delete({ id });
+    return { id, deleted: true };
   }
   async save(id: string, dto: SaveManualNoteDto) {
     return this.dataSource.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [id]);
+      if (await manager.getRepository(ManualOrderDeletion).findOneBy({ id }))
+        throw new GoneException('Este card foi excluído.');
       const notes = manager.getRepository(ManualOrderNote);
       const existing = await notes.findOneBy({ id });
       const lifecycle = (existing?.data as { lifecycle?: string } | undefined)
         ?.lifecycle;
-      if (lifecycle === 'transferred' || lifecycle === 'cancelled')
-        return existing!;
-      // Cancellation is terminal, including when another browser saved a newer revision.
-      // Keep the record so late/offline saves cannot recreate the cancelled card.
-      if (dto.data.lifecycle === 'cancelled') {
-        return notes.save(
-          notes.create({
-            id,
-            data: {
-              ...(existing?.data ?? dto.data),
-              id,
-              lifecycle: 'cancelled',
-              transferTarget: undefined,
-              pendingItem: undefined,
-            },
-          }),
-        );
-      }
+      if (lifecycle === 'transferred') return existing!;
+      if (dto.data.lifecycle === 'cancelled' || lifecycle === 'cancelled')
+        return this.removeCard(manager, id);
       if (
         existing &&
         ((existing.data as { revision?: number }).revision ?? 0) !==
@@ -117,6 +140,9 @@ export class ManualOrdersService {
           data: {
             ...dto.data,
             id,
+            orderNumber:
+              (existing?.data as ManualNoteData | undefined)?.orderNumber ??
+              (await reserveOrderNumber(manager)),
             lifecycle: 'open',
           },
         }),
@@ -126,6 +152,8 @@ export class ManualOrdersService {
   async transfer(id: string, dto: TransferManualNoteDto) {
     return this.dataSource.transaction(async (manager) => {
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [id]);
+      if (await manager.getRepository(ManualOrderDeletion).findOneBy({ id }))
+        throw new GoneException('Este card foi excluído.');
       const notes = manager.getRepository(ManualOrderNote);
       const existing = await notes.findOneBy({ id });
       if (
@@ -144,10 +172,15 @@ export class ManualOrdersService {
       const previous = await orders.findOneBy({ requestId: id });
       if (previous && previous.status !== 'manual_draft')
         throw new ConflictException('O pedido já está em outra etapa.');
+      const orderNumber =
+        previous?.id ??
+        (existing?.data as ManualNoteData | undefined)?.orderNumber ??
+        (await reserveOrderNumber(manager));
       const order = await orders.save(
         orders.create({
           ...previous,
           ...snapshot,
+          id: orderNumber,
           createdAt:
             previous?.createdAt ??
             (dto.data.createdAt ? new Date(dto.data.createdAt) : new Date()),
@@ -161,6 +194,7 @@ export class ManualOrdersService {
           data: {
             ...dto.data,
             id,
+            orderNumber,
             lifecycle: 'transferred',
             transferredOrderId: order.id,
             transferTarget: undefined,
@@ -199,6 +233,7 @@ export class ManualOrdersService {
         ...note,
         data: {
           ...data,
+          orderNumber: order.id,
           lifecycle: 'open',
           revision: (data.revision ?? 0) + 1,
           transferTarget: undefined,
@@ -228,9 +263,14 @@ export class ManualOrdersController {
   ) {
     return this.service.save(id, dto);
   }
+  @Delete(':id') remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.remove(id);
+  }
 }
 @Module({
-  imports: [TypeOrmModule.forFeature([ManualOrderNote, Order])],
+  imports: [
+    TypeOrmModule.forFeature([ManualOrderNote, ManualOrderDeletion, Order]),
+  ],
   controllers: [ManualOrdersController],
   providers: [ManualOrdersService],
 })

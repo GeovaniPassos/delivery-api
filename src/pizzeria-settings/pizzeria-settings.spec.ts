@@ -1,46 +1,57 @@
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import {
-  PizzeriaSettingsDto,
   PizzeriaSettingsService,
-} from "./pizzeria-settings.module";
-import { plainToInstance } from "class-transformer";
-import { validate } from "class-validator";
-describe("Pizzeria settings", () => {
-  const data = {
-    name: "Pizzaria",
-    address: "Rua A",
-    phones: ["1111", "2222"],
-    cnpj: "",
-    logo: "",
-  };
-  it("stores and retrieves multiple phones and the profile", async () => {
-    const repo = {
-      upsert: jest.fn(),
-      findOneBy: jest.fn().mockResolvedValue({ data }),
-    };
-    const service = new PizzeriaSettingsService(repo as never);
-    expect(await service.save(data)).toEqual(data);
-    expect(await service.get()).toEqual(data);
-    expect(repo.upsert).toHaveBeenCalledWith({ id: 1, data }, ["id"]);
+  PizzeriaThemeDto,
+} from './pizzeria-settings.module';
+
+describe('Company theme', () => {
+  it('defaults existing company profiles to dark', async () => {
+    const service = new PizzeriaSettingsService({
+      findOneBy: async () => ({ data: { name: 'Empresa' } }),
+    } as never);
+    expect(await service.get()).toMatchObject({
+      name: 'Empresa',
+      theme: 'dark',
+    });
   });
-  it("accepts an empty logo and rejects unsupported image data", async () => {
+  it('validates theme values', async () => {
     expect(
-      await validate(plainToInstance(PizzeriaSettingsDto, data)),
+      await validate(plainToInstance(PizzeriaThemeDto, { theme: 'light' })),
     ).toHaveLength(0);
     expect(
-      await validate(
-        plainToInstance(PizzeriaSettingsDto, {
-          ...data,
-          logo: "data:image/svg+xml;base64,AAAA",
-        }),
-      ),
+      await validate(plainToInstance(PizzeriaThemeDto, { theme: 'invalid' })),
     ).not.toHaveLength(0);
+  });
+  it('updates only the theme without overwriting company fields', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValue([{ data: { name: 'Empresa', theme: 'light' } }]);
+    const service = new PizzeriaSettingsService({ query } as never);
+    expect(await service.saveTheme('light')).toMatchObject({
+      name: 'Empresa',
+      theme: 'light',
+    });
+    expect(query.mock.calls[0][0]).toContain(
+      "jsonb_build_object('theme', $2::text)",
+    );
+    expect(query.mock.calls[0][1][1]).toBe('light');
+  });
+  it('preserves the database theme when saving a stale company form', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValue([{ data: { name: 'Empresa', theme: 'light' } }]);
+    const service = new PizzeriaSettingsService({ query } as never);
     expect(
-      await validate(
-        plainToInstance(PizzeriaSettingsDto, {
-          ...data,
-          phones: Array(11).fill("123"),
-        }),
-      ),
-    ).not.toHaveLength(0);
+      await service.save({
+        name: 'Empresa',
+        address: '',
+        phones: [],
+        cnpj: '',
+        logo: '',
+        theme: 'dark',
+      }),
+    ).toMatchObject({ theme: 'light' });
+    expect(query.mock.calls[0][0]).toContain("EXCLUDED.data - 'theme'");
   });
 });

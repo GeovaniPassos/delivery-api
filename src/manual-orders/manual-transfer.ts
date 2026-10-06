@@ -40,10 +40,17 @@ export function manualTransfer(
       details: item.details,
     };
   });
-  const total = Math.round(items.reduce((s, i) => s + i.total, 0) * 100) / 100;
+  const subtotal =
+    Math.round(items.reduce((s, i) => s + i.total, 0) * 100) / 100;
+  const c = data.customer;
+  const fee = c.deliveryFee ?? 0;
+  if (typeof fee !== 'number' || !Number.isFinite(fee) || fee < 0)
+    throw new BadRequestException('Revise a taxa de entrega.');
+  const deliveryFee =
+    target === 'out_for_delivery' ? Math.round(fee * 100) / 100 : 0;
+  const total = Math.round((subtotal + deliveryFee) * 100) / 100;
   if (total > 99999999.99)
     throw new BadRequestException('O total excede o limite permitido.');
-  const c = data.customer;
   const text = (key: string) =>
     typeof c[key] === 'string' ? (c[key] as string) : '';
   const type =
@@ -70,7 +77,8 @@ export function manualTransfer(
             street: text('street'),
             number: text('number'),
             neighborhoodName: text('neighborhood'),
-            neighborhoodId: 0,
+            neighborhoodId:
+              typeof c.neighborhoodId === 'number' ? c.neighborhoodId : 0,
             postalCode: '',
             complement: text('complement'),
           }
@@ -92,9 +100,9 @@ export function manualTransfer(
         }
       : null,
     items,
-    subtotal: total,
+    subtotal,
     total,
-    deliveryFee: 0,
+    deliveryFee,
     trackingToken: null,
     estimatedMinutes: null,
   };

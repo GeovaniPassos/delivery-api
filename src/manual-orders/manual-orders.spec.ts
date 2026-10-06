@@ -2,6 +2,7 @@ import {
   ManualOrdersService,
   SaveManualNoteDto,
   ManualOrderNote,
+  ManualOrderDeletion,
 } from './manual-orders.module';
 import { Order } from '../orders/entities/order.entity';
 import { plainToInstance } from 'class-transformer';
@@ -25,20 +26,35 @@ describe('Manual order notes', () => {
   };
   function setup() {
     let saved: ManualOrderNote | null = null;
+    let deleted: { id: string } | null = null;
+    const deletions = {
+      findOneBy: jest.fn(async () => deleted),
+      save: jest.fn(async (v: { id: string }) => (deleted = v)),
+    };
     const notes = {
       findOneBy: jest.fn(async () => saved),
       create: (v: ManualOrderNote) => v,
       save: jest.fn(async (v: ManualOrderNote) => (saved = v)),
+      delete: jest.fn(async () => {
+        saved = null;
+      }),
     };
     const orders = {
       findOneBy: jest.fn().mockResolvedValue(null),
       create: (v: Order) => v,
       save: jest.fn(async (v: Order) => ({ ...v, id: 55 })),
+      delete: jest.fn(),
     };
     const manager = {
-      query: jest.fn(),
+      query: jest.fn(async (sql: string) =>
+        sql.includes('nextval') ? [{ number: 4 }] : undefined,
+      ),
       getRepository: (entity: unknown) =>
-        entity === ManualOrderNote ? notes : orders,
+        entity === ManualOrderNote
+          ? notes
+          : entity === ManualOrderDeletion
+            ? deletions
+            : orders,
     };
     const source = {
       transaction: (fn: (m: unknown) => unknown) => fn(manager),
@@ -65,6 +81,28 @@ describe('Manual order notes', () => {
       ),
     ).toHaveLength(0);
   });
+  it('reserves a number once and ignores attempts to change it', async () => {
+    const { service, manager, orders } = setup();
+    const first = await service.save(id, {
+      data: { ...data, orderNumber: 999 },
+    });
+    expect(first).toMatchObject({ data: { orderNumber: 4 } });
+    expect(
+      await service.save(id, {
+        data: { ...data, name: 'Novo nome', orderNumber: 888 },
+      }),
+    ).toMatchObject({ data: { orderNumber: 4, name: 'Novo nome' } });
+    await service.transfer(id, {
+      data: { ...data, orderNumber: 777 },
+      target: 'ready',
+    });
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 4 }),
+    );
+    expect(
+      manager.query.mock.calls.filter(([sql]) => sql.includes('nextval')),
+    ).toHaveLength(1);
+  });
   it('transfers once and returns the same result when a request is retried', async () => {
     const { service, orders, manager } = setup();
     const first = await service.transfer(id, { data, target: 'ready' });
@@ -84,41 +122,40 @@ describe('Manual order notes', () => {
       [id],
     );
   });
-  it('does not recreate cancelled or transferred notes with late saves', async () => {
-    const { service } = setup();
-    await service.save(id, { data: { ...data, lifecycle: 'cancelled' } });
-    expect((await service.save(id, { data })).data).toMatchObject({
-      lifecycle: 'cancelled',
-    });
-    await expect(
-      service.transfer(id, { data, target: 'ready' }),
-    ).rejects.toThrow('cancelado');
-  });
-  it('persists cancellation against a newer revision and prevents late saves from restoring the card', async () => {
-    const { service } = setup();
+  it('physically removes legacy cancellation saves even with a stale revision', async () => {
+    const { service, notes } = setup();
     await service.save(id, {
       data: { ...data, revision: 2, pendingItem: { draft: {} } },
     });
-    const cancelled = await service.save(id, {
-      data: { ...data, revision: 0, lifecycle: 'cancelled' },
-    });
-    expect(cancelled.data).toMatchObject({
-      lifecycle: 'cancelled',
-      revision: 2,
-    });
-    expect(cancelled.data).not.toHaveProperty('pendingItem', expect.anything());
-    expect(await service.save(id, { data: { ...data, revision: 2 } })).toEqual(
-      cancelled,
-    );
-    await expect(
-      service.transfer(id, { data: { ...data, revision: 2 }, target: 'ready' }),
-    ).rejects.toThrow('cancelado');
+    expect(
+      await service.save(id, {
+        data: { ...data, revision: 0, lifecycle: 'cancelled' },
+      }),
+    ).toEqual({ id, deleted: true });
+    expect(notes.delete).toHaveBeenCalledWith({ id });
+    await expect(service.save(id, { data })).rejects.toThrow('excluído');
   });
   it('preserves delivery details and calculates totals and change', () => {
     const result = manualTransfer(data, 'out_for_delivery');
     expect(result.address?.complement).toBe('Fundos');
     expect(result.total).toBe(70);
     expect(result.payment?.change).toBe(30);
+  });
+  it('physically deletes a card and rejects late saves and transfers', async () => {
+    const { service, notes, orders } = setup();
+    await service.save(id, { data });
+    expect(await service.remove(id)).toEqual({ id, deleted: true });
+    expect(notes.delete).toHaveBeenCalledWith({ id });
+    expect(orders.delete).toHaveBeenCalledWith({
+      requestId: id,
+      source: 'manual',
+      status: 'manual_draft',
+    });
+    await expect(service.save(id, { data })).rejects.toThrow('excluído');
+    await expect(
+      service.transfer(id, { data, target: 'ready' }),
+    ).rejects.toThrow('excluído');
+    expect(await service.remove(id)).toEqual({ id, deleted: true });
   });
   it('rejects unfinished or invalid items during transfer', () => {
     expect(() =>
@@ -156,7 +193,11 @@ describe('Manual order notes', () => {
     const manager = {
       query: jest.fn(),
       getRepository: (entity: unknown) =>
-        entity === ManualOrderNote ? notes : orders,
+        entity === ManualOrderNote
+          ? notes
+          : entity === ManualOrderDeletion
+            ? { findOneBy: async () => null }
+            : orders,
     };
     const source = {
       getRepository: () => orders,
@@ -189,5 +230,26 @@ describe('Manual order notes', () => {
     expect(orders.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: 55, status: 'out_for_delivery' }),
     );
+  });
+  it('includes the manual delivery fee in totals and change, but not in pickup', () => {
+    const withFee = {
+      ...data,
+      customer: { ...data.customer, deliveryFee: 8, neighborhoodId: 3 },
+    };
+    const delivery = manualTransfer(withFee, 'out_for_delivery');
+    expect(delivery).toMatchObject({ subtotal: 70, deliveryFee: 8, total: 78 });
+    expect(delivery.payment?.change).toBe(22);
+    expect(delivery.address?.neighborhoodId).toBe(3);
+    expect(manualTransfer(withFee, 'ready')).toMatchObject({
+      subtotal: 70,
+      deliveryFee: 0,
+      total: 70,
+    });
+    expect(() =>
+      manualTransfer(
+        { ...data, customer: { ...data.customer, deliveryFee: -1 } },
+        'out_for_delivery',
+      ),
+    ).toThrow('taxa');
   });
 });
