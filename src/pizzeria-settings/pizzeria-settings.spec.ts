@@ -6,13 +6,13 @@ import {
 } from './pizzeria-settings.module';
 
 describe('Company theme', () => {
-  it('defaults existing company profiles to dark', async () => {
+  it('defaults existing company profiles to light', async () => {
     const service = new PizzeriaSettingsService({
       findOneBy: async () => ({ data: { name: 'Empresa' } }),
     } as never);
     expect(await service.get()).toMatchObject({
       name: 'Empresa',
-      theme: 'dark',
+      theme: 'light',
     });
   });
   it('validates theme values', async () => {

@@ -16,4 +16,10 @@ export class User {
 
   @Column({ unique: true })
   email: string;
+
+  @Column({ type: 'varchar', nullable: true, select: false })
+  passwordHash: string | null;
+
+  @Column({ default: 'support' })
+  role: string;
 }

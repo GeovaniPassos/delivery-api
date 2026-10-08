@@ -14,6 +14,7 @@ export class Order {
   @Column({ length: 64 }) requestHash!: string;
   @Column({ type: 'varchar', length: 64, nullable: true, unique: true })
   trackingToken!: string | null;
+  @Column({ type: 'int', nullable: true }) customerId!: number | null;
   @Column({ length: 500 }) customerName!: string;
   @Column({ type: 'text' }) phone!: string;
   @Column({ type: 'varchar', length: 10 }) fulfillment!: 'pickup' | 'delivery';

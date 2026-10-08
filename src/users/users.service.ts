@@ -12,6 +12,23 @@ export class UsersService {
     private userRepository: Repository<User>,
   ) {}
 
+  findByEmail(email: string) {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.passwordHash')
+      .where('LOWER(user.email) = LOWER(:email)', { email })
+      .getOne();
+  }
+
+  async ensureSupportUser(name: string, email: string, passwordHash: string) {
+    const existing = await this.findByEmail(email);
+    if (existing) {
+      await this.userRepository.save({ ...existing, name, email, passwordHash, role: 'support' });
+      return;
+    }
+    await this.userRepository.save(this.userRepository.create({ name, email, passwordHash, role: 'support' }));
+  }
+
   create(CreateUserDto: CreateUserDto) {
     return 'This action adds a new user';
   }

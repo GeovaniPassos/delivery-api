@@ -50,7 +50,7 @@ export class PizzeriaSettingsService {
   ) {}
   async get() {
     return {
-      theme: 'dark',
+      theme: 'light',
       ...((await this.repo.findOneBy({ id: 1 }))?.data ?? {
         name: '',
         address: '',
@@ -66,9 +66,9 @@ export class PizzeriaSettingsService {
       `INSERT INTO pizzeria_settings (id, data) VALUES (1, $1::jsonb)
        ON CONFLICT (id) DO UPDATE SET data = pizzeria_settings.data || (EXCLUDED.data - 'theme')
        RETURNING data`,
-      [JSON.stringify({ ...profile, theme: 'dark' })],
+      [JSON.stringify({ ...profile, theme: 'light' })],
     );
-    return { theme: 'dark', ...rows[0].data };
+    return { theme: rows[0].data.theme ?? 'light', ...rows[0].data };
   }
   async saveTheme(theme: 'dark' | 'light') {
     const rows = await this.repo.query(

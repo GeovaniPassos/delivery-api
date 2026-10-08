@@ -1,3 +1,7 @@
+## Acesso ao painel
+
+Configure `SUPPORT_NAME`, `SUPPORT_EMAIL`, `SUPPORT_PASSWORD` e `AUTH_SECRET` no ambiente da API antes de iniciá-la. Na inicialização, a API cria ou atualiza a conta de suporte configurada. `AUTH_SECRET` deve ser um valor aleatório longo e mantido em segredo. O painel envia um token de sessão com validade de 12 horas e as rotas da API exigem esse token.
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>

@@ -66,6 +66,7 @@ export function manualTransfer(
       : null;
   return {
     source: 'manual',
+    customerId: typeof c.customerId === 'number' ? c.customerId : null,
     customerName: data.name || text('name') || 'Pedido manual',
     phone: text('phone'),
     fulfillment: target === 'ready' ? 'pickup' : 'delivery',

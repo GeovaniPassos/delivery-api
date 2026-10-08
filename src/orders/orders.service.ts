@@ -30,6 +30,7 @@ import type { OrderPayment } from './model/order.model';
 import { StoreSettings } from '../store-settings/entities/store-settings.entity';
 import { PizzaCategoryCombination } from '../categories/entities/pizza-category-combination.entity';
 import { combinationIds } from '../categories/pizza-combinations';
+import { Customer } from '../customers/customer.entity';
 @Injectable()
 export class OrdersService {
   constructor(private readonly dataSource: DataSource) {}
@@ -185,23 +186,33 @@ export class OrdersService {
                 : null,
             };
           }
+          const customerAddress = dto.fulfillment === 'delivery'
+            ? {
+                street: dto.address!.street,
+                number: dto.address!.number,
+                postalCode: dto.address!.postalCode ?? '',
+                neighborhoodId: quote.neighborhood!.id,
+                neighborhoodName: quote.neighborhood!.name,
+              }
+            : null;
+          const customers = manager.getRepository(Customer);
+          let customer = await customers.findOneBy({ phone: dto.phone });
+          if (customer) {
+            customer.name = dto.customerName;
+            if (customerAddress) customer.address = customerAddress;
+          } else {
+            customer = customers.create({ name: dto.customerName, phone: dto.phone, address: customerAddress });
+          }
+          customer = await customers.save(customer);
           const order = repo.create({
             requestId: dto.requestId,
             requestHash: hash,
             trackingToken: randomBytes(32).toString('hex'),
             customerName: dto.customerName,
             phone: dto.phone,
+            customerId: customer.id,
             fulfillment: dto.fulfillment,
-            address:
-              dto.fulfillment === 'delivery'
-                ? {
-                    street: dto.address!.street,
-                    number: dto.address!.number,
-                    postalCode: dto.address!.postalCode ?? '',
-                    neighborhoodId: quote.neighborhood!.id,
-                    neighborhoodName: quote.neighborhood!.name,
-                  }
-                : null,
+            address: customerAddress,
             payment,
             items: quote.items,
             subtotal: quote.subtotal,
