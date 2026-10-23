@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Order } from './entities/order.entity';
+import { Combo } from '../combos/entities/combo.entity';
 import { Product } from '../products/entities/product.entity';
 import { Pizza } from '../pizzas/entities/pizza.entity';
 import { Category } from '../categories/entities/category.entity';
@@ -13,6 +14,7 @@ import { OrdersController } from './orders.controller';
   imports: [
     TypeOrmModule.forFeature([
       Order,
+      Combo,
       Product,
       Pizza,
       Category,

@@ -12,7 +12,7 @@ export class AuthGuard implements CanActivate {
     if (
       (request.method === 'GET' && [
         '/products', '/pizzas', '/categories', '/optionals', '/neighborhoods',
-        '/payment-methods', '/store-settings', '/pizzeria-settings', '/orders/tracking',
+        '/payment-methods', '/store-settings', '/pizzeria-settings', '/orders/tracking', '/combos',
       ].includes(path)) ||
       (request.method === 'POST' && ['/orders', '/orders/quote'].includes(path))
     ) return true;

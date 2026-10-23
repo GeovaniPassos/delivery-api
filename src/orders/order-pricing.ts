@@ -4,7 +4,8 @@ import { Pizza } from '../pizzas/entities/pizza.entity';
 import { Category } from '../categories/entities/category.entity';
 import { OptionalGroup } from '../optionals/entities/optional-group.entity';
 import { Neighborhood } from '../neighborhoods/entities/neighborhood.entity';
-import { QuoteOrderDto } from './dto/create-order.dto';
+import { OrderItemDto, QuoteOrderDto } from './dto/create-order.dto';
+import { Combo } from '../combos/entities/combo.entity';
 import { OrderQuote } from './model/order.model';
 import { normalizedSizeName } from '../categories/pizza-combinations';
 export interface OrderCatalog {
@@ -13,6 +14,7 @@ export interface OrderCatalog {
   categories: Category[];
   groups: OptionalGroup[];
   neighborhood: Neighborhood | null;
+  combos?: Combo[];
 }
 const fail = (message: string): never => {
   throw new BadRequestException(message);
@@ -23,6 +25,73 @@ export function cents(value: number) {
     fail('O valor do pedido ultrapassa o limite permitido.');
   return result;
 }
+function calculateComboLine(
+  line: OrderItemDto,
+  catalog: OrderCatalog,
+  date: Date,
+) {
+  const combo = catalog.combos?.find((item) => item.id === line.comboId);
+  if (!combo?.active) fail('Este combo não está disponível.');
+  const selections = line.selections ?? [];
+  if (!selections.length || selections.some((item) => item.type !== 'product' && item.type !== 'pizza'))
+    fail('Revise os itens selecionados para o combo.');
+  if (selections.some((item) => item.quantity !== 1))
+    fail('Cada item do combo deve ser selecionado uma vez.');
+
+  for (const categoryId of combo!.categoryIds) {
+    const category = catalog.categories.find((item) => item.id === categoryId);
+    if (!category?.active) fail('Uma categoria deste combo não está disponível.');
+    const matches = selections.filter((selection) => category!.isPizza
+      ? selection.type === 'pizza' && selection.categoryId === categoryId
+      : selection.type === 'product' && catalog.products.find((product) => product.id === selection.productId)?.categoryId === categoryId);
+    if (matches.length !== 1) fail('Selecione exatamente um item de cada categoria do combo.');
+    if (category!.isPizza) {
+      const pizza = matches[0];
+      const flavorCount = pizza.flavors?.length ?? 0;
+      if (!combo!.allowHalfAndHalf && flavorCount !== 1)
+        fail('Este combo permite selecionar apenas um sabor de pizza.');
+      if (combo!.allowHalfAndHalf && flavorCount > combo!.maxPizzaFlavors)
+        fail('A pizza ultrapassa o limite de sabores deste combo.');
+    }
+  }
+  for (const productId of combo!.productIds) {
+    if (selections.filter((item) => item.type === 'product' && item.productId === productId).length !== 1)
+      fail('Selecione todos os produtos fixos deste combo.');
+  }
+  const expectedCount = combo!.categoryIds.length + combo!.productIds.length;
+  if (selections.length !== expectedCount)
+    fail('O combo contém uma seleção que não faz parte da oferta.');
+
+  const categoryOptionalCount = selections.reduce((count, item) => count +
+    (item.optionals?.length ?? 0) + (item.flavors?.reduce((sum, flavor) => sum + (flavor.optionals?.length ?? 0), 0) ?? 0), 0);
+  const custom = line.customOptionals ?? [];
+  if (!combo!.optionalsEnabled && (categoryOptionalCount || custom.length))
+    fail('Este combo não permite opcionais.');
+  if (combo!.optionalsEnabled && combo!.optionalSource === 'category' && custom.length)
+    fail('Este combo aceita apenas opcionais das categorias.');
+  if (combo!.optionalsEnabled && combo!.optionalSource === 'custom' && categoryOptionalCount)
+    fail('Este combo aceita apenas os opcionais exclusivos cadastrados nele.');
+  for (const selected of custom)
+    if (!combo!.customOptionals[selected.itemIndex]) fail('Um opcional deste combo não está mais disponível.');
+  if (combo!.optionalsRequired && !categoryOptionalCount && !custom.some((item) => item.quantity > 0))
+    fail('Selecione ao menos um opcional para o combo.');
+
+  const standardRequest = (items: OrderItemDto[]): QuoteOrderDto => ({ fulfillment: 'pickup', items } as QuoteOrderDto);
+  const withOptions = calculateOrder(standardRequest(selections), catalog, date);
+  const withoutOptions = calculateOrder(standardRequest(selections.map((item) => ({
+    ...item,
+    optionals: [],
+    flavors: item.flavors?.map((flavor) => ({ ...flavor, optionals: [] })),
+  }))), catalog, date);
+  let extras = cents(withOptions.subtotal) - cents(withoutOptions.subtotal);
+  for (const selected of custom)
+    extras += cents(combo!.customOptionals[selected.itemIndex].price) * selected.quantity;
+  const unitPrice = cents(combo!.price + extras / 100) / 100;
+  const total = cents(unitPrice * line.quantity) / 100;
+  const details = withOptions.items.flatMap((item) => [item.name, ...item.details]);
+  return { name: combo!.name, quantity: line.quantity, unitPrice, total, details };
+}
+
 export function calculateOrder(
   dto: QuoteOrderDto,
   catalog: OrderCatalog,
@@ -52,6 +121,7 @@ export function calculateOrder(
     return names.map((n) => 'Sem ' + n);
   };
   const items = dto.items.map((line) => {
+    if (line.type === 'combo') return calculateComboLine(line, catalog, date);
     let categoryId: number;
     let base: number;
     let name: string;

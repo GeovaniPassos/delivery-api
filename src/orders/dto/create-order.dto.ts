@@ -46,7 +46,7 @@ export class OrderItemDto {
   @IsString()
   @MaxLength(500)
   observation?: string;
-  @IsIn(['product', 'pizza']) type!: 'product' | 'pizza';
+  @IsIn(['product', 'pizza', 'combo']) type!: 'product' | 'pizza' | 'combo';
   @IsInt() @Min(1) @Max(99) quantity!: number;
   @ValidateIf((o) => o.type === 'product') @IsInt() @Min(1) productId?: number;
   @IsArray()
@@ -71,6 +71,20 @@ export class OrderItemDto {
   @ValidateNested({ each: true })
   @Type(() => OrderOptionalDto)
   optionals: OrderOptionalDto[] = [];
+  @ValidateIf((o) => o.type === 'combo') @IsInt() @Min(1) comboId?: number;
+  @ValidateIf((o) => o.type === 'combo')
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100)
+  @ValidateNested({ each: true }) @Type(() => OrderItemDto)
+  selections?: OrderItemDto[];
+  @ValidateIf((o) => o.type === 'combo')
+  @IsArray() @ArrayMaxSize(100)
+  @ArrayUnique((item: { itemIndex: number }) => item.itemIndex)
+  @ValidateNested({ each: true }) @Type(() => ComboOptionalSelectionDto)
+  customOptionals?: ComboOptionalSelectionDto[];
+}
+export class ComboOptionalSelectionDto {
+  @IsInt() @Min(0) itemIndex!: number;
+  @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) quantity!: number;
 }
 export class QuoteOrderDto {
   @IsIn(['pickup', 'delivery']) fulfillment!: 'pickup' | 'delivery';

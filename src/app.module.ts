@@ -1,3 +1,4 @@
+import { CombosModule } from './combos/combos.module';
 import { PizzeriaSettingsModule } from './pizzeria-settings/pizzeria-settings.module';
 import { ManualOrdersModule } from './manual-orders/manual-orders.module';
 import { NeighborhoodsModule } from './neighborhoods/neighborhoods.module';
@@ -40,6 +41,7 @@ import { CustomersModule } from './customers/customers.module';
     CustomersModule,
     CategoriesModule,
     ProductsModule,
+    CombosModule,
     PizzasModule,
     OptionalsModule,
     NeighborhoodsModule,

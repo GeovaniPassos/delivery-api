@@ -31,20 +31,23 @@ import { StoreSettings } from '../store-settings/entities/store-settings.entity'
 import { PizzaCategoryCombination } from '../categories/entities/pizza-category-combination.entity';
 import { combinationIds } from '../categories/pizza-combinations';
 import { Customer } from '../customers/customer.entity';
+import { Combo } from '../combos/entities/combo.entity';
 @Injectable()
 export class OrdersService {
   constructor(private readonly dataSource: DataSource) {}
   private async quoteWith(manager: EntityManager, dto: QuoteOrderDto) {
-    const productIds = dto.items
+    const components = dto.items.flatMap((item) => item.type === 'combo' ? item.selections ?? [] : [item]);
+    const comboIds = dto.items.filter((item) => item.type === 'combo').map((item) => item.comboId!);
+    const productIds = components
       .filter((i) => i.type === 'product')
       .map((i) => i.productId!);
-    const pizzaIds = dto.items
+    const pizzaIds = components
       .filter((i) => i.type === 'pizza')
       .flatMap((i) => i.flavors?.map((f) => f.pizzaId) ?? []);
-    const categoryIds = dto.items
+    const categoryIds = components
       .filter((i) => i.type === 'pizza')
       .map((i) => i.categoryId!);
-    const groupIds = dto.items.flatMap((i) =>
+    const groupIds = components.flatMap((i) =>
       [
         ...i.optionals,
         ...(i.type === 'pizza'
@@ -84,6 +87,9 @@ export class OrdersService {
           relations: { products: true, category: true },
         })
       : [];
+    const combos = comboIds.length
+      ? await manager.getRepository(Combo).findBy({ id: In(comboIds) })
+      : [];
     const neighborhood =
       dto.fulfillment === 'delivery'
         ? await manager
@@ -96,6 +102,7 @@ export class OrdersService {
       categories,
       groups,
       neighborhood,
+      combos,
     });
   }
   quote(dto: QuoteOrderDto) {
