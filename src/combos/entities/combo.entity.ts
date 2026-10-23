@@ -5,6 +5,11 @@ export interface ComboOptional {
   price: number;
 }
 
+export interface ComboProductPrice {
+  productId: number;
+  price: number;
+}
+
 @Entity('combos')
 export class Combo {
   @PrimaryGeneratedColumn() id!: number;
@@ -13,11 +18,13 @@ export class Combo {
   @Column({ type: 'decimal', precision: 10, scale: 2, transformer: { to: (v: number) => v, from: (v: string) => Number(v) } }) price!: number;
   @Column({ type: 'jsonb', default: () => "'[]'::jsonb" }) categoryIds!: number[];
   @Column({ type: 'jsonb', default: () => "'[]'::jsonb" }) productIds!: number[];
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" }) productPrices!: ComboProductPrice[];
   @Column({ default: false }) allowHalfAndHalf!: boolean;
   @Column({ type: 'int', default: 1 }) maxPizzaFlavors!: number;
   @Column({ default: false }) optionalsEnabled!: boolean;
   @Column({ type: 'varchar', length: 20, default: 'category' }) optionalSource!: 'category' | 'custom';
   @Column({ default: false }) optionalsRequired!: boolean;
+  @Column({ default: false }) allowMultipleOptionals!: boolean;
   @Column({ type: 'jsonb', default: () => "'[]'::jsonb" }) customOptionals!: { name: string; price: number }[];
   @Column({ default: true }) active!: boolean;
 }

@@ -54,9 +54,12 @@ function calculateComboLine(
         fail('A pizza ultrapassa o limite de sabores deste combo.');
     }
   }
+  let fixedProductExtras = 0;
   for (const productId of combo!.productIds) {
     if (selections.filter((item) => item.type === 'product' && item.productId === productId).length !== 1)
       fail('Selecione todos os produtos fixos deste combo.');
+    const comboProductPrice = combo!.productPrices?.find((entry) => entry.productId === productId)?.price ?? 0;
+    fixedProductExtras += cents(comboProductPrice);
   }
   const expectedCount = combo!.categoryIds.length + combo!.productIds.length;
   if (selections.length !== expectedCount)
@@ -73,6 +76,10 @@ function calculateComboLine(
     fail('Este combo aceita apenas os opcionais exclusivos cadastrados nele.');
   for (const selected of custom)
     if (!combo!.customOptionals[selected.itemIndex]) fail('Um opcional deste combo não está mais disponível.');
+  if (custom.some((item) => item.quantity !== 1))
+    fail('Cada opcional exclusivo do combo pode ser selecionado uma vez.');
+  if (!combo!.allowMultipleOptionals && custom.length > 1)
+    fail('Este combo permite escolher apenas um opcional exclusivo.');
   if (combo!.optionalsRequired && !categoryOptionalCount && !custom.some((item) => item.quantity > 0))
     fail('Selecione ao menos um opcional para o combo.');
 
@@ -83,7 +90,7 @@ function calculateComboLine(
     optionals: [],
     flavors: item.flavors?.map((flavor) => ({ ...flavor, optionals: [] })),
   }))), catalog, date);
-  let extras = cents(withOptions.subtotal) - cents(withoutOptions.subtotal);
+  let extras = cents(withOptions.subtotal) - cents(withoutOptions.subtotal) + fixedProductExtras;
   for (const selected of custom)
     extras += cents(combo!.customOptionals[selected.itemIndex].price) * selected.quantity;
   const unitPrice = cents(combo!.price + extras / 100) / 100;

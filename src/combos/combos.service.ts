@@ -30,6 +30,13 @@ export class CombosService {
       const products = await this.products.find({ where: { id: In(productIds) } });
       if (products.length !== new Set(productIds).size) throw new BadRequestException('Um ou mais produtos não foram encontrados.');
     }
+    const selectedProductIds = new Set(productIds);
+    const configuredProductIds = new Set<number>();
+    for (const entry of dto.productPrices ?? []) {
+      if (!selectedProductIds.has(entry.productId) || configuredProductIds.has(entry.productId))
+        throw new BadRequestException('O valor configurado deve pertencer a um produto específico selecionado uma única vez.');
+      configuredProductIds.add(entry.productId);
+    }
     if (dto.optionalSource === 'custom' && dto.optionalsEnabled && !dto.customOptionals?.length) throw new BadRequestException('Cadastre ao menos um opcional para este combo.');
   }
   async create(dto: CreateComboDto) {
